@@ -132,7 +132,7 @@ class _ChatScreenState extends State<ChatScreen> {
           : XiaozhiConfig(
               id: '',
               name: 'HDVbot',
-              websocketUrl: 'https://api.tenclass.net/xiaozhi/ota/',
+              websocketUrl: 'wss://api.tenclass.net/xiaozhi/v1/',
               macAddress: '',
               token: 'test-token',
             ),
@@ -896,7 +896,7 @@ class _ChatScreenState extends State<ChatScreen> {
           : XiaozhiConfig(
               id: '',
               name: 'HDVbot',
-              websocketUrl: 'https://api.tenclass.net/xiaozhi/ota/',
+              websocketUrl: 'wss://api.tenclass.net/xiaozhi/v1/',
               macAddress: '',
               token: 'test-token',
             ),

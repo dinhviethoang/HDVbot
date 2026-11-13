@@ -550,7 +550,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   void _showAddXiaozhiConfigDialog() {
     final nameController = TextEditingController(text: 'HDVbot');
     final websocketUrlController = TextEditingController(
-      text: 'https://api.tenclass.net/xiaozhi/ota/',
+      text: 'wss://api.tenclass.net/xiaozhi/v1/',
     );
     final tokenController = TextEditingController();
     final macAddressController = TextEditingController();
@@ -641,7 +641,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                     ),
                     const SizedBox(height: 16),
                     const Text(
-                      'Địa chỉ WebSocket / OTA URL',
+                      'Địa chỉ WebSocket',
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -657,7 +657,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                       child: TextField(
                         controller: websocketUrlController,
                         decoration: InputDecoration(
-                          hintText: 'https://api.tenclass.net/xiaozhi/ota/',
+                          hintText: 'wss://api.tenclass.net/xiaozhi/v1/',
                           hintStyle: TextStyle(color: Colors.grey.shade400),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
@@ -905,7 +905,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                     ),
                     const SizedBox(height: 16),
                     const Text(
-                      'Địa chỉ WebSocket / OTA URL',
+                      'Địa chỉ WebSocket',
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -921,7 +921,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                       child: TextField(
                         controller: websocketUrlController,
                         decoration: InputDecoration(
-                          hintText: 'https://api.tenclass.net/xiaozhi/ota/',
+                          hintText: 'wss://api.tenclass.net/xiaozhi/v1/',
                           hintStyle: TextStyle(color: Colors.grey.shade400),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
