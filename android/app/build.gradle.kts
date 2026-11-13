@@ -30,11 +30,22 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("hdvbot") {
+            // Khoa ky co dinh de cac ban build sau cai de len ban cu duoc (repo rieng tu)
+            storeFile = file("hdvbot-release.p12")
+            storeType = "pkcs12"
+            storePassword = "46a1905cec90c7242ea68634"
+            keyAlias = "hdvbot"
+            keyPassword = "46a1905cec90c7242ea68634"
+        }
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("hdvbot")
             // 启用R8优化
             isMinifyEnabled = true
             isDebuggable = false
