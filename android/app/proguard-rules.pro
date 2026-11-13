@@ -24,3 +24,5 @@
     public static int d(...);
     public static int i(...);
 } 
+# Flutter deferred components tham chieu Play Core nhung app khong dung
+-dontwarn com.google.android.play.core.**
