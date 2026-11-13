@@ -37,7 +37,7 @@ jobs:
           GRADLE_FILE="$PCM_DIR/build.gradle"
           MANIFEST_FILE="$PCM_DIR/src/main/AndroidManifest.xml"
           if grep -q "namespace" "$GRADLE_FILE"; then
-            sed -i -E 's/namespace[ =]+["'][^"']+["']/namespace "com.lhht.flutter_pcm_player"/' "$GRADLE_FILE"
+            sed -i -E "s/namespace[ =]+[^ ]+/namespace \"com.lhht.flutter_pcm_player\"/" "$GRADLE_FILE"
           else
             sed -i '/android {/a \    namespace "com.lhht.flutter_pcm_player"' "$GRADLE_FILE"
           fi
