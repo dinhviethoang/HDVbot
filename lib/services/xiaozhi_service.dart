@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_sound/flutter_sound.dart';
@@ -49,6 +50,9 @@ class XiaozhiService {
   final String? clientId;
   final String token;
   String? _sessionId; // 会话ID将由服务器提供
+
+  /// Thông báo cảm xúc hiện tại từ máy chủ Xiaozhi
+  final ValueNotifier<String> emotionNotifier = ValueNotifier<String>('neutral');
 
   XiaozhiWebSocketManager? _webSocketManager;
   bool _isConnected = false;
@@ -247,6 +251,7 @@ class XiaozhiService {
       await _webSocketManager!.disconnect();
       _webSocketManager = null;
       _isConnected = false;
+      emotionNotifier.value = 'neutral';
     } catch (e) {
       print('$TAG: 断开连接失败: $e');
     }
@@ -626,6 +631,12 @@ class XiaozhiService {
         print('$TAG: 更新会话ID: $_sessionId');
       }
 
+      // Cập nhật cảm xúc nếu có trong tin nhắn (type 'emotion', 'llm' hoặc bất kỳ tin nhắn nào có trường 'emotion')
+      final dynamic rawEmotion = jsonData['emotion'];
+      if (rawEmotion is String && rawEmotion.trim().isNotEmpty) {
+        emotionNotifier.value = rawEmotion.trim();
+      }
+
       // 根据消息类型分发事件
       switch (type) {
         case 'hello':
@@ -674,12 +685,25 @@ class XiaozhiService {
           final String emotion = jsonData['emotion'] ?? '';
           if (emotion.isNotEmpty) {
             print('$TAG: 收到表情消息: $emotion');
+            emotionNotifier.value = emotion;
             _dispatchEvent(
               XiaozhiServiceEvent(
                 XiaozhiServiceEventType.textMessage,
                 '表情: $emotion',
               ),
             );
+          }
+          break;
+
+        case 'llm':
+          // 处理LLM文本/表情消息 (giao thức Xiaozhi: {"type":"llm","text":"😊","emotion":"happy"})
+          final dynamic llmEmotion = jsonData['emotion'];
+          if (llmEmotion is String && llmEmotion.trim().isNotEmpty) {
+            emotionNotifier.value = llmEmotion.trim();
+          }
+          final String llmText = jsonData['text'] ?? '';
+          if (llmText.isNotEmpty) {
+            print('$TAG: 收到LLM消息: $llmText (emotion: $llmEmotion)');
           }
           break;
 

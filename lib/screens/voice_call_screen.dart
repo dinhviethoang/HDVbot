@@ -12,7 +12,7 @@ import 'package:ai_assistant/services/xiaozhi_service.dart';
 import 'package:ai_assistant/services/xiaozhi_ota_service.dart';
 import 'package:ai_assistant/utils/app_theme.dart';
 import 'package:ai_assistant/utils/device_util.dart';
-import 'package:ai_assistant/widgets/robot_eyes.dart';
+import 'package:ai_assistant/widgets/robot_face.dart';
 
 /// Màn hình gọi thoại toàn màn hình phong cách mặt robot HDVbot
 /// Tối ưu đặc biệt cho Samsung J2 Pro (540x960, RAM 1.5GB)
@@ -55,6 +55,14 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   Duration _callDuration = Duration.zero;
   bool _serverReady = false;
 
+  // Cảm xúc robot từ server và đếm giờ về trung tính
+  FaceEmotion _currentEmotion = FaceEmotion.neutral;
+  Timer? _idleEmotionTimer;
+
+  // Thanh điều khiển nhỏ mờ ở mép dưới
+  bool _showControls = false;
+  Timer? _controlsTimer;
+
   late AnimationController _animationController;
   final List<double> _audioLevels = List.filled(24, 0.05);
   Timer? _audioVisualizerTimer;
@@ -64,30 +72,8 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     super.initState();
     _currentConfig = widget.xiaozhiConfig;
 
-    // Thiết lập thanh trạng thái trong suốt nền tối
-    SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
-        statusBarBrightness: Brightness.dark,
-        systemNavigationBarColor: AppTheme.backgroundColor,
-        systemNavigationBarIconBrightness: Brightness.light,
-        systemNavigationBarDividerColor: Colors.transparent,
-      ),
-    );
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      SystemChrome.setSystemUIOverlayStyle(
-        const SystemUiOverlayStyle(
-          statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.light,
-          statusBarBrightness: Brightness.dark,
-          systemNavigationBarColor: AppTheme.backgroundColor,
-          systemNavigationBarIconBrightness: Brightness.light,
-          systemNavigationBarDividerColor: Colors.transparent,
-        ),
-      );
-    });
+    // Bật chế độ toàn màn hình ẩn hoàn toàn thanh trạng thái & điều hướng
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
     _animationController = AnimationController(
       vsync: this,
@@ -167,6 +153,10 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         _otaError = null;
       });
 
+      // Huỷ đăng ký listener cũ nếu có trước khi tạo service mới
+      _xiaozhiService?.removeListener(_handleServiceEvent);
+      _xiaozhiService?.emotionNotifier.removeListener(_handleEmotionChange);
+
       // Tạo và kết nối XiaozhiService với websocket url & token từ OTA
       _xiaozhiService = XiaozhiService(
         websocketUrl: updatedConfig.websocketUrl,
@@ -178,6 +168,12 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
 
       _xiaozhiService!.setMessageListener(_handleServerMessage);
       _xiaozhiService!.addListener(_handleServiceEvent);
+      _xiaozhiService!.emotionNotifier.addListener(_handleEmotionChange);
+
+      // Lấy cảm xúc ban đầu nếu đã có
+      _currentEmotion = RobotFace.faceEmotionFromServer(
+        _xiaozhiService!.emotionNotifier.value,
+      );
 
       _connectToVoiceService();
     } catch (e) {
@@ -190,10 +186,38 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     }
   }
 
+  void _handleEmotionChange() {
+    if (!mounted) return;
+    final rawEmotion = _xiaozhiService?.emotionNotifier.value;
+    final parsed = RobotFace.faceEmotionFromServer(rawEmotion);
+    _idleEmotionTimer?.cancel();
+    setState(() {
+      _currentEmotion = parsed;
+    });
+  }
+
+  void _startIdleEmotionTimer() {
+    _idleEmotionTimer?.cancel();
+    _idleEmotionTimer = Timer(const Duration(seconds: 6), () {
+      if (mounted) {
+        setState(() {
+          _currentEmotion = FaceEmotion.neutral;
+        });
+      }
+    });
+  }
+
   void _handleServerMessage(dynamic message) {
     if (!mounted) return;
     if (message is Map<String, dynamic>) {
       final String type = message['type'] ?? '';
+
+      // Cập nhật cảm xúc nếu tin nhắn có chứa trường 'emotion'
+      final dynamic emotion = message['emotion'];
+      if (emotion is String && emotion.isNotEmpty) {
+        _idleEmotionTimer?.cancel();
+        _currentEmotion = RobotFace.faceEmotionFromServer(emotion);
+      }
 
       if (type == 'hello') {
         setState(() {
@@ -215,6 +239,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         final String state = message['state'] ?? '';
         final String text = message['text'] ?? '';
         if (state == 'sentence_start') {
+          _idleEmotionTimer?.cancel();
           setState(() {
             _isRobotSpeaking = true;
             _isThinking = false;
@@ -232,10 +257,13 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
               _statusText = 'Sẵn sàng';
             }
           });
+          // Khi robot nói xong và về idle qua 6 giây thì trả về neutral
+          _startIdleEmotionTimer();
         }
       } else if (type == 'stt') {
         final String text = message['text'] ?? '';
         if (text.isNotEmpty) {
+          _idleEmotionTimer?.cancel();
           setState(() {
             _latestSubtitle = 'Bạn: $text';
             _isThinking = true;
@@ -243,6 +271,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
           });
         }
       } else if (type == 'llm') {
+        _idleEmotionTimer?.cancel();
         setState(() {
           _isThinking = true;
           _statusText = 'Đang xử lý...';
@@ -255,6 +284,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     if (!mounted) return;
     switch (event.type) {
       case XiaozhiServiceEventType.userMessage:
+        _idleEmotionTimer?.cancel();
         setState(() {
           if (event.data is String && (event.data as String).isNotEmpty) {
             _latestSubtitle = 'Bạn: ${event.data}';
@@ -265,6 +295,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         break;
 
       case XiaozhiServiceEventType.textMessage:
+        _idleEmotionTimer?.cancel();
         setState(() {
           if (event.data is String && (event.data as String).isNotEmpty) {
             _latestSubtitle = 'HDVbot: ${event.data}';
@@ -296,8 +327,14 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
 
   @override
   void dispose() {
+    // Khôi phục lại chế độ màn hình thông thường
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
     _otaCancelToken?.cancel();
+    _idleEmotionTimer?.cancel();
+    _controlsTimer?.cancel();
     _xiaozhiService?.removeListener(_handleServiceEvent);
+    _xiaozhiService?.emotionNotifier.removeListener(_handleEmotionChange);
     _xiaozhiService?.switchToChatMode();
     _callTimer?.cancel();
     _audioVisualizerTimer?.cancel();
@@ -458,6 +495,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         _statusText = 'Đang lắng nghe...';
       }
     });
+    _startIdleEmotionTimer();
 
     if (mounted) {
       _showCustomSnackbar(
@@ -475,77 +513,252 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     return '$minutes:$seconds';
   }
 
-  /// Xác định trạng thái thật của mắt robot từ trạng thái cuộc gọi
-  RobotEyeState _resolveRobotEyeState() {
+  /// Xác định trạng thái thật của khuôn mặt robot từ trạng thái cuộc gọi
+  FaceState _resolveFaceState() {
     if (_showActivationOverlay) {
-      return RobotEyeState.idle;
+      if (_otaError != null) {
+        return FaceState.error;
+      }
+      return FaceState.connecting;
     }
-    if (!_isConnected || _hasError) {
-      return RobotEyeState.error;
+    if (_hasError) {
+      return FaceState.error;
+    }
+    if (!_isConnected || !_serverReady) {
+      return FaceState.connecting;
     }
     if (_isRobotSpeaking) {
-      return RobotEyeState.speaking;
+      return FaceState.speaking;
     }
     if (_isThinking) {
-      return RobotEyeState.thinking;
+      return FaceState.thinking;
     }
     if (_isSpeaking) {
-      return RobotEyeState.listening;
+      return FaceState.listening;
     }
-    return RobotEyeState.idle;
+    return FaceState.idle;
+  }
+
+  void _toggleControls() {
+    if (_showControls) {
+      setState(() {
+        _showControls = false;
+      });
+      _controlsTimer?.cancel();
+    } else {
+      setState(() {
+        _showControls = true;
+      });
+      _resetControlsTimer();
+    }
+  }
+
+  void _resetControlsTimer() {
+    _controlsTimer?.cancel();
+    _controlsTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) {
+        setState(() {
+          _showControls = false;
+        });
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final robotEyeState = _resolveRobotEyeState();
+    final faceState = _resolveFaceState();
     final double currentVolume =
         _audioLevels.isNotEmpty ? _audioLevels.last : 0.0;
 
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
-      body: Stack(
-        children: [
-          SafeArea(
-            child: Column(
-              children: [
-                // Thanh tiêu đề HUD nhỏ gọn
-                _buildTopHudBar(),
+      backgroundColor: const Color(0xFF000000),
+      body: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _toggleControls,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Khuôn mặt robot chiếm toàn màn hình nền đen tuyền
+            Positioned.fill(
+              child: Container(
+                color: const Color(0xFF000000),
+                child: RobotFace(
+                  state: faceState,
+                  emotion: _currentEmotion,
+                  volume: currentVolume,
+                  color: const Color(0xFF00F0FF),
+                ),
+              ),
+            ),
 
-                // Phần lớn màn hình: Mắt robot Mecha HUD
-                Expanded(
-                  flex: 6,
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: RobotEyes(
-                        state: robotEyeState,
-                        volume: currentVolume,
-                        height: 220,
+            // Thanh điều khiển nhỏ mờ ở mép dưới khi chạm vào màn hình (tự ẩn sau 4 giây)
+            if (_showControls && !_showActivationOverlay)
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 12,
+                child: _buildBottomControlBar(),
+              ),
+
+            // Lớp phủ kích hoạt (hiển thị mã 6 số) và lớp phủ lỗi khi cần (đặt trên khuôn mặt)
+            if (_showActivationOverlay) _buildActivationOverlay(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Thanh điều khiển nhỏ mờ ở mép dưới màn hình
+  Widget _buildBottomControlBar() {
+    final isMuted = _xiaozhiService?.isMuted ?? false;
+
+    return Center(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _resetControlsTimer,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xCC000000), // Nền đen mờ 80%
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: const Color(0x5500F0FF),
+              width: 1.0,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.6),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Nút quay lại bo tròn nhỏ
+              IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+                color: Colors.white70,
+                tooltip: 'Quay lại',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                onPressed: () {
+                  _otaCancelToken?.cancel();
+                  _xiaozhiService?.stopPlayback();
+                  Navigator.pop(context);
+                },
+              ),
+              const SizedBox(width: 8),
+
+              // Dòng trạng thái ngắn
+              Container(
+                constraints: const BoxConstraints(maxWidth: 160),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _hasError
+                            ? AppTheme.errorColor
+                            : (_isConnected
+                                ? const Color(0xFF00E676)
+                                : Colors.orangeAccent),
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        _statusText,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                    ),
+                  ],
                 ),
+              ),
+              const SizedBox(width: 12),
 
-                // Dòng trạng thái cuộc gọi HUD
-                _buildStatusBadge(robotEyeState),
-                const SizedBox(height: 10),
+              // Nút tắt / mở mic
+              _buildSmallCircleButton(
+                icon: isMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                color: isMuted ? AppTheme.errorColor : const Color(0xFF00F0FF),
+                backgroundColor: const Color(0x3300F0FF),
+                size: 38,
+                onPressed: () {
+                  _xiaozhiService?.toggleMute();
+                  setState(() {});
+                  _resetControlsTimer();
+                },
+              ),
+              const SizedBox(width: 10),
 
-                // Phụ đề câu nói gần nhất (người dùng hoặc robot)
-                _buildSubtitlePanel(),
-                const SizedBox(height: 12),
+              // Nút ngắt lời robot
+              _buildSmallCircleButton(
+                icon: Icons.pan_tool_rounded,
+                color: Colors.white,
+                backgroundColor: const Color(0xCCFF9100),
+                size: 38,
+                onPressed: () {
+                  _sendAbortMessage();
+                  _resetControlsTimer();
+                },
+              ),
+              const SizedBox(width: 10),
 
-                // Thanh hiển thị dải âm thanh nhịp điệu HUD
-                _buildAudioVisualizer(),
-                const SizedBox(height: 16),
-
-                // Các nút điều khiển cuộc gọi
-                _buildBottomControls(),
-                const SizedBox(height: 14),
-              ],
-            ),
+              // Nút kết thúc cuộc gọi
+              _buildSmallCircleButton(
+                icon: Icons.call_end_rounded,
+                color: Colors.white,
+                backgroundColor: AppTheme.errorColor,
+                size: 42,
+                onPressed: () async {
+                  _otaCancelToken?.cancel();
+                  await _xiaozhiService?.sendAbortMessage();
+                  _xiaozhiService?.stopPlayback();
+                  if (mounted) {
+                    Navigator.pop(context);
+                  }
+                },
+              ),
+            ],
           ),
-          if (_showActivationOverlay) _buildActivationOverlay(),
-        ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSmallCircleButton({
+    required IconData icon,
+    required Color color,
+    required Color backgroundColor,
+    required double size,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        shape: BoxShape.circle,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onPressed,
+          child: Center(
+            child: Icon(icon, color: color, size: size * 0.5),
+          ),
+        ),
       ),
     );
   }
@@ -847,293 +1060,6 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                 ),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Thanh tiêu đề công nghệ trên cùng (nút quay lại, tên bot, thời lượng)
-  Widget _buildTopHudBar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Nút quay lại bo vát góc
-          InkWell(
-            onTap: () {
-              _otaCancelToken?.cancel();
-              _xiaozhiService?.stopPlayback();
-              Navigator.pop(context);
-            },
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppTheme.surfaceColor,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppTheme.borderColor),
-              ),
-              child: const Icon(
-                Icons.arrow_back_ios_new_rounded,
-                color: AppTheme.textColor,
-                size: 18,
-              ),
-            ),
-          ),
-
-          // Tên robot và phòng đàm thoại
-          Column(
-            children: [
-              const Text(
-                'HDVbot',
-                style: TextStyle(
-                  color: AppTheme.accentColor,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.5,
-                ),
-              ),
-              Text(
-                widget.conversation.title.isNotEmpty
-                    ? widget.conversation.title
-                    : 'Đàm thoại AI',
-                style: const TextStyle(
-                  color: AppTheme.secondaryTextColor,
-                  fontSize: 12,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-
-          // Thời lượng cuộc gọi
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppTheme.surfaceColor,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppTheme.borderColor),
-            ),
-            child: Text(
-              _formatDuration(_callDuration),
-              style: const TextStyle(
-                color: AppTheme.textColor,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 1.0,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Huy hiệu trạng thái HUD công nghệ
-  Widget _buildStatusBadge(RobotEyeState eyeState) {
-    Color badgeColor;
-    IconData badgeIcon;
-
-    switch (eyeState) {
-      case RobotEyeState.speaking:
-        badgeColor = AppTheme.accentColor;
-        badgeIcon = Icons.volume_up_rounded;
-        break;
-      case RobotEyeState.listening:
-        badgeColor = const Color(0xFF00E676);
-        badgeIcon = Icons.mic_rounded;
-        break;
-      case RobotEyeState.thinking:
-        badgeColor = const Color(0xFFFFB300);
-        badgeIcon = Icons.sync_rounded;
-        break;
-      case RobotEyeState.error:
-        badgeColor = AppTheme.errorColor;
-        badgeIcon = Icons.error_outline_rounded;
-        break;
-      case RobotEyeState.idle:
-      default:
-        badgeColor = _isConnected ? const Color(0xFF00E676) : AppTheme.secondaryTextColor;
-        badgeIcon = _isConnected ? Icons.check_circle_outline_rounded : Icons.hourglass_empty_rounded;
-        break;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: BoxDecoration(
-        color: badgeColor.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: badgeColor.withOpacity(0.55), width: 1.0),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(badgeIcon, color: badgeColor, size: 14),
-          const SizedBox(width: 8),
-          Text(
-            _statusText,
-            style: TextStyle(
-              color: badgeColor,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Bảng hiển thị phụ đề câu nói gần nhất (Bạn / HDVbot)
-  Widget _buildSubtitlePanel() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      constraints: const BoxConstraints(minHeight: 52),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceColor.withOpacity(0.9),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppTheme.borderColor, width: 1.0),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          const Icon(
-            Icons.subtitles_rounded,
-            color: AppTheme.accentColor,
-            size: 16,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              _latestSubtitle.isNotEmpty
-                  ? _latestSubtitle
-                  : 'Hãy nói điều gì đó để bắt đầu trò chuyện...',
-              style: TextStyle(
-                color: _latestSubtitle.isNotEmpty
-                    ? AppTheme.textColor
-                    : AppTheme.secondaryTextColor,
-                fontSize: 13,
-                height: 1.3,
-                fontStyle: _latestSubtitle.isNotEmpty
-                    ? FontStyle.normal
-                    : FontStyle.italic,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Dải sóng âm thanh cân bằng HUD
-  Widget _buildAudioVisualizer() {
-    return Container(
-      width: 220,
-      height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceColor.withOpacity(0.6),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppTheme.borderColor.withOpacity(0.5)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: List.generate(
-          _audioLevels.length,
-          (index) => Container(
-            width: 3.5,
-            height: math.max(4.0, 24.0 * _audioLevels[index]),
-            decoration: BoxDecoration(
-              color: _getBarColor(index, _audioLevels[index]),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Color _getBarColor(int index, double level) {
-    if (_hasError) {
-      return AppTheme.errorColor.withOpacity(0.8);
-    }
-    if (_isRobotSpeaking) {
-      return AppTheme.accentColor.withOpacity(0.6 + (0.4 * level));
-    }
-    if (_isSpeaking) {
-      return const Color(0xFF00E676).withOpacity(0.6 + (0.4 * level));
-    }
-    return AppTheme.secondaryTextColor.withOpacity(0.35);
-  }
-
-  /// Các nút điều khiển cuộc gọi dưới đáy
-  Widget _buildBottomControls() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // Nút kết thúc cuộc gọi
-        _buildCircleButton(
-          icon: Icons.call_end_rounded,
-          color: Colors.white,
-          backgroundColor: AppTheme.errorColor,
-          size: 60,
-          onPressed: () async {
-            await _xiaozhiService?.sendAbortMessage();
-            if (mounted) {
-              Navigator.pop(context);
-            }
-          },
-        ),
-        const SizedBox(width: 32),
-
-        // Nút ngắt lời robot
-        _buildCircleButton(
-          icon: Icons.pan_tool_rounded,
-          color: Colors.white,
-          backgroundColor: const Color(0xFFFF9100),
-          size: 54,
-          onPressed: _sendAbortMessage,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCircleButton({
-    required IconData icon,
-    required Color color,
-    required Color backgroundColor,
-    required double size,
-    required VoidCallback onPressed,
-  }) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: backgroundColor.withOpacity(0.35),
-            blurRadius: 8,
-            spreadRadius: 1,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onPressed,
-          child: Center(
-            child: Icon(icon, color: color, size: size * 0.46),
           ),
         ),
       ),
