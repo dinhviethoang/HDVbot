@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:ai_assistant/utils/app_theme.dart';
 
 // 全局状态管理，确保同时只有一个删除按钮打开
 class SlidableController {
@@ -105,27 +106,22 @@ class _SlidableDeleteTileState extends State<SlidableDeleteTile> {
             width: 52,
             height: 52,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppTheme.surfaceColor,
               shape: BoxShape.circle,
+              border: Border.all(color: AppTheme.errorColor.withOpacity(0.5)),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.grey.withOpacity(0.2),
-                  blurRadius: 4,
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 6,
                   spreadRadius: 0,
                   offset: const Offset(0, 2),
                 ),
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  spreadRadius: -2,
-                  offset: const Offset(0, 4),
-                ),
               ],
             ),
-            child: Center(
+            child: const Center(
               child: Icon(
                 Icons.delete_outline_rounded,
-                color: Colors.red.shade600,
+                color: AppTheme.errorColor,
                 size: 26,
               ),
             ),

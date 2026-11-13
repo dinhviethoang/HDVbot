@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:ai_assistant/providers/theme_provider.dart';
 import 'package:ai_assistant/providers/config_provider.dart';
 import 'package:ai_assistant/models/xiaozhi_config.dart';
+import 'package:ai_assistant/utils/app_theme.dart';
 
 class SettingsScreen extends StatefulWidget {
   final int initialTab;
@@ -47,19 +47,19 @@ class _SettingsScreenState extends State<SettingsScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 1,
+        backgroundColor: AppTheme.backgroundColor,
+        elevation: 0,
         toolbarHeight: 70,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black, size: 26),
+          icon: const Icon(Icons.arrow_back, color: AppTheme.primaryColor, size: 26),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: const Text(
           'Cài đặt',
           style: TextStyle(
-            color: Colors.black,
+            color: AppTheme.textColor,
             fontWeight: FontWeight.bold,
             fontSize: 24,
           ),
@@ -84,17 +84,18 @@ class _SettingsScreenState extends State<SettingsScreen>
 
   Widget _buildTabBar() {
     return Container(
-      color: const Color(0xFFF8F9FA),
+      color: AppTheme.backgroundColor,
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Container(
         height: 46,
         decoration: BoxDecoration(
-          color: const Color(0xFFE8E8E8),
+          color: AppTheme.surfaceColor,
           borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppTheme.borderColor),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 2,
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 4,
               spreadRadius: 0,
               offset: const Offset(0, 1),
             ),
@@ -103,13 +104,14 @@ class _SettingsScreenState extends State<SettingsScreen>
         child: TabBar(
           controller: _tabController,
           indicator: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
+            color: const Color(0xFF1E293B),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppTheme.primaryColor.withOpacity(0.5)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: AppTheme.primaryColor.withOpacity(0.1),
                 blurRadius: 4,
-                offset: const Offset(0, 2),
+                offset: const Offset(0, 1),
               ),
             ],
           ),
@@ -120,10 +122,10 @@ class _SettingsScreenState extends State<SettingsScreen>
           labelPadding: EdgeInsets.zero,
           padding: EdgeInsets.zero,
           indicatorSize: TabBarIndicatorSize.tab,
-          labelColor: Colors.black,
-          unselectedLabelColor: Colors.grey.shade700,
+          labelColor: AppTheme.primaryColor,
+          unselectedLabelColor: AppTheme.secondaryTextColor,
           dividerColor: Colors.transparent,
-          overlayColor: MaterialStateProperty.all(Colors.transparent),
+          overlayColor: WidgetStateProperty.all(Colors.transparent),
           splashFactory: NoSplash.splashFactory,
           labelStyle: const TextStyle(
             fontWeight: FontWeight.w600,
@@ -150,59 +152,6 @@ class _SettingsScreenState extends State<SettingsScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildCard(
-              title: 'Giao diện',
-              subtitle: 'Tùy chỉnh giao diện hiển thị',
-              child: Column(
-                children: [
-                  Consumer<ThemeProvider>(
-                    builder: (context, themeProvider, child) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 20,
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              children: [
-                                SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: const Icon(
-                                    Icons.dark_mode,
-                                    color: Colors.black,
-                                    size: 22,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                const Text(
-                                  'Chế độ tối',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Switch.adaptive(
-                              value: themeProvider.isDarkMode,
-                              onChanged: (value) {
-                                themeProvider.toggleTheme();
-                              },
-                              activeColor: Colors.black,
-                              inactiveTrackColor: const Color(0xFFE0E0E0),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            _buildCard(
               title: 'Giới thiệu',
               subtitle: 'Thông tin ứng dụng',
               child: Padding(
@@ -220,13 +169,14 @@ class _SettingsScreenState extends State<SettingsScreen>
                           width: 56,
                           height: 56,
                           decoration: BoxDecoration(
-                            color: Colors.purple.shade100,
+                            color: AppTheme.surfaceColor,
                             borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppTheme.primaryColor),
                           ),
-                          child: Icon(
+                          child: const Icon(
                             Icons.smart_toy_outlined,
                             size: 32,
-                            color: Colors.purple.shade700,
+                            color: AppTheme.primaryColor,
                           ),
                         ),
                       ),
@@ -241,22 +191,23 @@ class _SettingsScreenState extends State<SettingsScreen>
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
+                              color: AppTheme.textColor,
                             ),
                           ),
                           const SizedBox(height: 4),
-                          Text(
+                          const Text(
                             'Phiên bản 2.0.0 (Bản cá nhân)',
                             style: TextStyle(
                               fontSize: 14,
-                              color: Colors.grey.shade600,
+                              color: AppTheme.secondaryTextColor,
                             ),
                           ),
                           const SizedBox(height: 2),
-                          Text(
-                            'Dựa trên Xiaozhi Android Client',
+                          const Text(
+                            'Trợ lý robot giọng nói Xiaozhi AI',
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.grey.shade500,
+                              color: AppTheme.secondaryTextColor,
                             ),
                           ),
                         ],
@@ -287,14 +238,14 @@ class _SettingsScreenState extends State<SettingsScreen>
                 subtitle: 'Quản lý cấu hình kết nối giọng nói Xiaozhi',
                 actionButton: ElevatedButton.icon(
                   onPressed: _showAddXiaozhiConfigDialog,
-                  icon: const Icon(Icons.add, color: Colors.white, size: 18),
+                  icon: const Icon(Icons.add, color: Color(0xFF070B12), size: 18),
                   label: const Text(
                     'Thêm dịch vụ',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF222222),
-                    foregroundColor: Colors.white,
+                    backgroundColor: AppTheme.primaryColor,
+                    foregroundColor: const Color(0xFF070B12),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 8,
@@ -315,7 +266,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                           child: Text(
                             'Chưa có cấu hình Xiaozhi nào.\nNhấn nút "Thêm dịch vụ" ở trên để bắt đầu.',
                             textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.grey, fontSize: 14),
+                            style: TextStyle(color: AppTheme.secondaryTextColor, fontSize: 14),
                           ),
                         ),
                       )
@@ -337,12 +288,12 @@ class _SettingsScreenState extends State<SettingsScreen>
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.backgroundColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade100),
+        border: Border.all(color: AppTheme.borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withOpacity(0.3),
             blurRadius: 4,
             spreadRadius: 0,
             offset: const Offset(0, 2),
@@ -359,19 +310,12 @@ class _SettingsScreenState extends State<SettingsScreen>
                 Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.purple.withOpacity(0.3),
-                        blurRadius: 8,
-                        spreadRadius: 0,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
+                    border: Border.all(color: AppTheme.primaryColor.withOpacity(0.5)),
                   ),
-                  child: CircleAvatar(
+                  child: const CircleAvatar(
                     radius: 24,
-                    backgroundColor: Colors.purple.shade400,
-                    child: const Icon(Icons.mic, color: Colors.white, size: 26),
+                    backgroundColor: AppTheme.surfaceColor,
+                    child: Icon(Icons.mic, color: AppTheme.primaryColor, size: 26),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -384,14 +328,15 @@ class _SettingsScreenState extends State<SettingsScreen>
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
+                          color: AppTheme.textColor,
                         ),
                       ),
                       Text(
                         config.websocketUrl.isNotEmpty
                             ? config.websocketUrl
                             : 'OTA: ${config.otaUrl}',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
+                        style: const TextStyle(
+                          color: AppTheme.secondaryTextColor,
                           fontSize: 14,
                         ),
                       ),
@@ -401,20 +346,14 @@ class _SettingsScreenState extends State<SettingsScreen>
                 Container(
                   margin: const EdgeInsets.only(left: 4),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppTheme.surfaceColor,
                     borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 2,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
+                    border: Border.all(color: AppTheme.borderColor),
                   ),
                   child: IconButton(
-                    icon: Icon(
+                    icon: const Icon(
                       Icons.edit_outlined,
-                      color: Colors.grey.shade600,
+                      color: AppTheme.primaryColor,
                       size: 22,
                     ),
                     onPressed: () => _showEditXiaozhiConfigDialog(config),
@@ -424,20 +363,14 @@ class _SettingsScreenState extends State<SettingsScreen>
                 const SizedBox(width: 8),
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppTheme.surfaceColor,
                     borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 2,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
+                    border: Border.all(color: AppTheme.borderColor),
                   ),
                   child: IconButton(
                     icon: const Icon(
                       Icons.delete_outline,
-                      color: Colors.red,
+                      color: AppTheme.errorColor,
                       size: 22,
                     ),
                     onPressed: () => _showDeleteXiaozhiConfigDialog(config),
@@ -455,12 +388,12 @@ class _SettingsScreenState extends State<SettingsScreen>
                     children: [
                       const Text(
                         'Địa chỉ MAC:',
-                        style: TextStyle(color: Colors.grey, fontSize: 14),
+                        style: TextStyle(color: AppTheme.secondaryTextColor, fontSize: 14),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         config.macAddress.isEmpty ? 'Tự động' : config.macAddress,
-                        style: const TextStyle(fontSize: 14),
+                        style: const TextStyle(fontSize: 14, color: AppTheme.textColor),
                       ),
                     ],
                   ),
@@ -471,12 +404,12 @@ class _SettingsScreenState extends State<SettingsScreen>
                     children: [
                       const Text(
                         'Token:',
-                        style: TextStyle(color: Colors.grey, fontSize: 14),
+                        style: TextStyle(color: AppTheme.secondaryTextColor, fontSize: 14),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         config.token.isEmpty ? 'Mặc định' : config.token,
-                        style: const TextStyle(fontSize: 14),
+                        style: const TextStyle(fontSize: 14, color: AppTheme.textColor),
                       ),
                     ],
                   ),
@@ -498,11 +431,12 @@ class _SettingsScreenState extends State<SettingsScreen>
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.surfaceColor,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withOpacity(0.3),
             blurRadius: 6,
             spreadRadius: 0,
             offset: const Offset(0, 3),
@@ -525,14 +459,15 @@ class _SettingsScreenState extends State<SettingsScreen>
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
+                        color: AppTheme.textColor,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       subtitle,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 14,
-                        color: Colors.grey.shade600,
+                        color: AppTheme.secondaryTextColor,
                       ),
                     ),
                   ],
@@ -542,7 +477,7 @@ class _SettingsScreenState extends State<SettingsScreen>
             ),
           ),
           const SizedBox(height: 12),
-          const Divider(height: 1, color: Color(0xFFEEEEEE)),
+          const Divider(height: 1, color: AppTheme.borderColor),
           child,
         ],
       ),
@@ -562,18 +497,21 @@ class _SettingsScreenState extends State<SettingsScreen>
       context: context,
       builder:
           (context) => Dialog(
+            backgroundColor: AppTheme.surfaceColor,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
+              side: const BorderSide(color: AppTheme.borderColor),
             ),
             elevation: 8,
             child: Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppTheme.surfaceColor,
                 borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppTheme.borderColor),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withOpacity(0.4),
                     blurRadius: 12,
                     spreadRadius: 0,
                     offset: const Offset(0, 4),
@@ -593,15 +531,17 @@ class _SettingsScreenState extends State<SettingsScreen>
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
+                            color: AppTheme.textColor,
                           ),
                         ),
                         Container(
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
+                            color: AppTheme.backgroundColor,
                             borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppTheme.borderColor),
                           ),
                           child: IconButton(
-                            icon: const Icon(Icons.close, size: 20),
+                            icon: const Icon(Icons.close, size: 20, color: AppTheme.secondaryTextColor),
                             onPressed: () => Navigator.pop(context),
                             padding: const EdgeInsets.all(4),
                             constraints: const BoxConstraints(),
@@ -612,7 +552,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                     const SizedBox(height: 8),
                     const Text(
                       'Cấu hình kết nối dịch vụ giọng nói Xiaozhi',
-                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                      style: TextStyle(color: AppTheme.secondaryTextColor, fontSize: 13),
                     ),
                     const SizedBox(height: 20),
                     const Text(
@@ -620,21 +560,23 @@ class _SettingsScreenState extends State<SettingsScreen>
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
+                        color: AppTheme.textColor,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: AppTheme.backgroundColor,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade300),
+                        border: Border.all(color: AppTheme.borderColor),
                       ),
                       child: TextField(
                         controller: nameController,
-                        decoration: InputDecoration(
+                        style: const TextStyle(color: AppTheme.textColor),
+                        decoration: const InputDecoration(
                           hintText: 'Ví dụ: HDVbot',
-                          hintStyle: TextStyle(color: Colors.grey.shade400),
-                          contentPadding: const EdgeInsets.symmetric(
+                          hintStyle: TextStyle(color: AppTheme.secondaryTextColor),
+                          contentPadding: EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 12,
                           ),
@@ -648,21 +590,23 @@ class _SettingsScreenState extends State<SettingsScreen>
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
+                        color: AppTheme.textColor,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: AppTheme.backgroundColor,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade300),
+                        border: Border.all(color: AppTheme.borderColor),
                       ),
                       child: TextField(
                         controller: otaUrlController,
-                        decoration: InputDecoration(
+                        style: const TextStyle(color: AppTheme.textColor),
+                        decoration: const InputDecoration(
                           hintText: XiaozhiConfig.defaultOtaUrl,
-                          hintStyle: TextStyle(color: Colors.grey.shade400),
-                          contentPadding: const EdgeInsets.symmetric(
+                          hintStyle: TextStyle(color: AppTheme.secondaryTextColor),
+                          contentPadding: EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 12,
                           ),
@@ -676,21 +620,23 @@ class _SettingsScreenState extends State<SettingsScreen>
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
+                        color: AppTheme.textColor,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: AppTheme.backgroundColor,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade300),
+                        border: Border.all(color: AppTheme.borderColor),
                       ),
                       child: TextField(
                         controller: websocketUrlController,
-                        decoration: InputDecoration(
+                        style: const TextStyle(color: AppTheme.textColor),
+                        decoration: const InputDecoration(
                           hintText: 'Tự điền sau khi kích hoạt',
-                          hintStyle: TextStyle(color: Colors.grey.shade400),
-                          contentPadding: const EdgeInsets.symmetric(
+                          hintStyle: TextStyle(color: AppTheme.secondaryTextColor),
+                          contentPadding: EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 12,
                           ),
@@ -701,7 +647,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                     const SizedBox(height: 4),
                     const Text(
                       'Tự điền sau khi kích hoạt OTA, không bắt buộc nhập',
-                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                      style: TextStyle(color: AppTheme.secondaryTextColor, fontSize: 12),
                     ),
                     const SizedBox(height: 16),
                     const Text(
@@ -709,21 +655,23 @@ class _SettingsScreenState extends State<SettingsScreen>
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
+                        color: AppTheme.textColor,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: AppTheme.backgroundColor,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade300),
+                        border: Border.all(color: AppTheme.borderColor),
                       ),
                       child: TextField(
                         controller: macAddressController,
-                        decoration: InputDecoration(
+                        style: const TextStyle(color: AppTheme.textColor),
+                        decoration: const InputDecoration(
                           hintText: 'Để trống sẽ tự động tạo từ thiết bị',
-                          hintStyle: TextStyle(color: Colors.grey.shade400),
-                          contentPadding: const EdgeInsets.symmetric(
+                          hintStyle: TextStyle(color: AppTheme.secondaryTextColor),
+                          contentPadding: EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 12,
                           ),
@@ -734,7 +682,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                     const SizedBox(height: 4),
                     const Text(
                       'Để trống sẽ tự tạo địa chỉ MAC cố định theo máy',
-                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                      style: TextStyle(color: AppTheme.secondaryTextColor, fontSize: 12),
                     ),
                     const SizedBox(height: 16),
                     const Text(
@@ -742,21 +690,23 @@ class _SettingsScreenState extends State<SettingsScreen>
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
+                        color: AppTheme.textColor,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: AppTheme.backgroundColor,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade300),
+                        border: Border.all(color: AppTheme.borderColor),
                       ),
                       child: TextField(
                         controller: tokenController,
-                        decoration: InputDecoration(
+                        style: const TextStyle(color: AppTheme.textColor),
+                        decoration: const InputDecoration(
                           hintText: 'Mặc định: test-token',
-                          hintStyle: TextStyle(color: Colors.grey.shade400),
-                          contentPadding: const EdgeInsets.symmetric(
+                          hintStyle: TextStyle(color: AppTheme.secondaryTextColor),
+                          contentPadding: EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 12,
                           ),
@@ -776,8 +726,11 @@ class _SettingsScreenState extends State<SettingsScreen>
                         if (name.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: const Text('Vui lòng nhập Tên dịch vụ'),
-                              backgroundColor: Colors.red.shade600,
+                              content: const Text(
+                                'Vui lòng nhập Tên dịch vụ',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                              backgroundColor: AppTheme.errorColor,
                               behavior: SnackBarBehavior.floating,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
@@ -803,19 +756,23 @@ class _SettingsScreenState extends State<SettingsScreen>
                         Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: const Text('Đã thêm dịch vụ Xiaozhi thành công'),
-                            backgroundColor: Colors.green.shade600,
+                            content: const Text(
+                              'Đã thêm dịch vụ Xiaozhi thành công',
+                              style: TextStyle(color: AppTheme.textColor),
+                            ),
+                            backgroundColor: AppTheme.surfaceColor,
                             behavior: SnackBarBehavior.floating,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
+                              side: const BorderSide(color: AppTheme.primaryColor),
                             ),
                             margin: const EdgeInsets.all(10),
                           ),
                         );
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        foregroundColor: Colors.white,
+                        backgroundColor: AppTheme.primaryColor,
+                        foregroundColor: const Color(0xFF070B12),
                         elevation: 4,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
@@ -834,8 +791,8 @@ class _SettingsScreenState extends State<SettingsScreen>
                     OutlinedButton(
                       onPressed: () => Navigator.pop(context),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.black,
-                        side: const BorderSide(color: Colors.grey),
+                        foregroundColor: AppTheme.textColor,
+                        side: const BorderSide(color: AppTheme.borderColor),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -872,18 +829,21 @@ class _SettingsScreenState extends State<SettingsScreen>
       context: context,
       builder:
           (context) => Dialog(
+            backgroundColor: AppTheme.surfaceColor,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
+              side: const BorderSide(color: AppTheme.borderColor),
             ),
             elevation: 8,
             child: Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppTheme.surfaceColor,
                 borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppTheme.borderColor),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withOpacity(0.4),
                     blurRadius: 12,
                     spreadRadius: 0,
                     offset: const Offset(0, 4),
@@ -903,10 +863,11 @@ class _SettingsScreenState extends State<SettingsScreen>
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
+                            color: AppTheme.textColor,
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.close),
+                          icon: const Icon(Icons.close, color: AppTheme.secondaryTextColor),
                           onPressed: () => Navigator.pop(context),
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
@@ -916,7 +877,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                     const SizedBox(height: 8),
                     const Text(
                       'Chỉnh sửa cấu hình kết nối Xiaozhi',
-                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                      style: TextStyle(color: AppTheme.secondaryTextColor, fontSize: 13),
                     ),
                     const SizedBox(height: 20),
                     const Text(
@@ -924,21 +885,23 @@ class _SettingsScreenState extends State<SettingsScreen>
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
+                        color: AppTheme.textColor,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: AppTheme.backgroundColor,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade300),
+                        border: Border.all(color: AppTheme.borderColor),
                       ),
                       child: TextField(
                         controller: nameController,
-                        decoration: InputDecoration(
+                        style: const TextStyle(color: AppTheme.textColor),
+                        decoration: const InputDecoration(
                           hintText: 'Ví dụ: HDVbot',
-                          hintStyle: TextStyle(color: Colors.grey.shade400),
-                          contentPadding: const EdgeInsets.symmetric(
+                          hintStyle: TextStyle(color: AppTheme.secondaryTextColor),
+                          contentPadding: EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 12,
                           ),
@@ -952,21 +915,23 @@ class _SettingsScreenState extends State<SettingsScreen>
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
+                        color: AppTheme.textColor,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: AppTheme.backgroundColor,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade300),
+                        border: Border.all(color: AppTheme.borderColor),
                       ),
                       child: TextField(
                         controller: otaUrlController,
-                        decoration: InputDecoration(
+                        style: const TextStyle(color: AppTheme.textColor),
+                        decoration: const InputDecoration(
                           hintText: XiaozhiConfig.defaultOtaUrl,
-                          hintStyle: TextStyle(color: Colors.grey.shade400),
-                          contentPadding: const EdgeInsets.symmetric(
+                          hintStyle: TextStyle(color: AppTheme.secondaryTextColor),
+                          contentPadding: EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 12,
                           ),
@@ -980,21 +945,23 @@ class _SettingsScreenState extends State<SettingsScreen>
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
+                        color: AppTheme.textColor,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: AppTheme.backgroundColor,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade300),
+                        border: Border.all(color: AppTheme.borderColor),
                       ),
                       child: TextField(
                         controller: websocketUrlController,
-                        decoration: InputDecoration(
+                        style: const TextStyle(color: AppTheme.textColor),
+                        decoration: const InputDecoration(
                           hintText: 'Tự điền sau khi kích hoạt',
-                          hintStyle: TextStyle(color: Colors.grey.shade400),
-                          contentPadding: const EdgeInsets.symmetric(
+                          hintStyle: TextStyle(color: AppTheme.secondaryTextColor),
+                          contentPadding: EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 12,
                           ),
@@ -1005,7 +972,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                     const SizedBox(height: 4),
                     const Text(
                       'Tự điền sau khi kích hoạt OTA, không bắt buộc nhập',
-                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                      style: TextStyle(color: AppTheme.secondaryTextColor, fontSize: 12),
                     ),
                     const SizedBox(height: 16),
                     const Text(
@@ -1013,22 +980,24 @@ class _SettingsScreenState extends State<SettingsScreen>
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
+                        color: AppTheme.textColor,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Container(
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF5F5F5),
+                        color: AppTheme.backgroundColor,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.grey.shade300),
+                        border: Border.all(color: AppTheme.borderColor),
                       ),
                       child: TextField(
                         controller: macAddressController,
                         enabled: true,
-                        decoration: InputDecoration(
+                        style: const TextStyle(color: AppTheme.textColor),
+                        decoration: const InputDecoration(
                           hintText: 'Để trống sẽ tự tạo',
-                          hintStyle: TextStyle(color: Colors.grey.shade400),
-                          contentPadding: const EdgeInsets.symmetric(
+                          hintStyle: TextStyle(color: AppTheme.secondaryTextColor),
+                          contentPadding: EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 12,
                           ),
@@ -1042,17 +1011,19 @@ class _SettingsScreenState extends State<SettingsScreen>
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
+                        color: AppTheme.textColor,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: AppTheme.backgroundColor,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade300),
+                        border: Border.all(color: AppTheme.borderColor),
                       ),
                       child: TextField(
                         controller: tokenController,
+                        style: const TextStyle(color: AppTheme.textColor),
                         decoration: const InputDecoration(
                           contentPadding: EdgeInsets.symmetric(
                             horizontal: 16,
@@ -1074,8 +1045,11 @@ class _SettingsScreenState extends State<SettingsScreen>
                         if (name.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: const Text('Vui lòng nhập Tên dịch vụ'),
-                              backgroundColor: Colors.red.shade600,
+                              content: const Text(
+                                'Vui lòng nhập Tên dịch vụ',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                              backgroundColor: AppTheme.errorColor,
                               behavior: SnackBarBehavior.floating,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
@@ -1105,19 +1079,23 @@ class _SettingsScreenState extends State<SettingsScreen>
                         Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: const Text('Đã cập nhật dịch vụ Xiaozhi'),
-                            backgroundColor: Colors.green.shade600,
+                            content: const Text(
+                              'Đã cập nhật dịch vụ Xiaozhi',
+                              style: TextStyle(color: AppTheme.textColor),
+                            ),
+                            backgroundColor: AppTheme.surfaceColor,
                             behavior: SnackBarBehavior.floating,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
+                              side: const BorderSide(color: AppTheme.primaryColor),
                             ),
                             margin: const EdgeInsets.all(10),
                           ),
                         );
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        foregroundColor: Colors.white,
+                        backgroundColor: AppTheme.primaryColor,
+                        foregroundColor: const Color(0xFF070B12),
                         elevation: 4,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
@@ -1136,8 +1114,8 @@ class _SettingsScreenState extends State<SettingsScreen>
                     OutlinedButton(
                       onPressed: () => Navigator.pop(context),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.black,
-                        side: const BorderSide(color: Colors.grey),
+                        foregroundColor: AppTheme.textColor,
+                        side: const BorderSide(color: AppTheme.borderColor),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -1164,17 +1142,20 @@ class _SettingsScreenState extends State<SettingsScreen>
       context: context,
       builder:
           (context) => Dialog(
+            backgroundColor: AppTheme.surfaceColor,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
+              side: const BorderSide(color: AppTheme.borderColor),
             ),
             child: Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppTheme.surfaceColor,
                 borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppTheme.borderColor),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withOpacity(0.4),
                     blurRadius: 12,
                     spreadRadius: 0,
                     offset: const Offset(0, 4),
@@ -1194,10 +1175,11 @@ class _SettingsScreenState extends State<SettingsScreen>
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
+                            color: AppTheme.textColor,
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.close),
+                          icon: const Icon(Icons.close, color: AppTheme.secondaryTextColor),
                           onPressed: () => Navigator.pop(context),
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
@@ -1207,7 +1189,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                     const SizedBox(height: 16),
                     Text(
                       'Bạn có chắc chắn muốn xóa "${config.name}"?',
-                      style: const TextStyle(fontSize: 16),
+                      style: const TextStyle(fontSize: 16, color: AppTheme.textColor),
                     ),
                     const SizedBox(height: 24),
                     ElevatedButton(
@@ -1220,8 +1202,11 @@ class _SettingsScreenState extends State<SettingsScreen>
                         Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: const Text('Đã xóa dịch vụ thành công'),
-                            backgroundColor: Colors.green.shade600,
+                            content: const Text(
+                              'Đã xóa dịch vụ thành công',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                            backgroundColor: AppTheme.errorColor,
                             behavior: SnackBarBehavior.floating,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
@@ -1231,7 +1216,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                         );
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
+                        backgroundColor: AppTheme.errorColor,
                         foregroundColor: Colors.white,
                         elevation: 4,
                         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -1251,8 +1236,8 @@ class _SettingsScreenState extends State<SettingsScreen>
                     OutlinedButton(
                       onPressed: () => Navigator.pop(context),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.black,
-                        side: const BorderSide(color: Colors.grey),
+                        foregroundColor: AppTheme.textColor,
+                        side: const BorderSide(color: AppTheme.borderColor),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),

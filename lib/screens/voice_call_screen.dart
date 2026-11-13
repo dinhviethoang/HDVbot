@@ -55,8 +55,8 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   Duration _callDuration = Duration.zero;
   bool _serverReady = false;
 
-  // Cảm xúc robot từ server và đếm giờ về trung tính
-  FaceEmotion _currentEmotion = FaceEmotion.neutral;
+  // Cảm xúc robot từ server và đếm giờ về vui vẻ
+  FaceEmotion _currentEmotion = FaceEmotion.happy;
   Timer? _idleEmotionTimer;
 
   // Thanh điều khiển nhỏ mờ ở mép dưới
@@ -170,8 +170,8 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       _xiaozhiService!.addListener(_handleServiceEvent);
       _xiaozhiService!.emotionNotifier.addListener(_handleEmotionChange);
 
-      // Lấy cảm xúc ban đầu nếu đã có
-      _currentEmotion = RobotFace.faceEmotionFromServer(
+      // Lấy cảm xúc ban đầu nếu đã có (mặc định vui vẻ)
+      _currentEmotion = _resolveEmotion(
         _xiaozhiService!.emotionNotifier.value,
       );
 
@@ -186,10 +186,19 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     }
   }
 
+  /// Ánh xạ cảm xúc: server gửi "neutral" hoặc không rõ thì mặc định thành happy; các cảm xúc khác giữ nguyên
+  FaceEmotion _resolveEmotion(String? raw) {
+    final parsed = RobotFace.faceEmotionFromServer(raw);
+    if (parsed == FaceEmotion.neutral) {
+      return FaceEmotion.happy;
+    }
+    return parsed;
+  }
+
   void _handleEmotionChange() {
     if (!mounted) return;
     final rawEmotion = _xiaozhiService?.emotionNotifier.value;
-    final parsed = RobotFace.faceEmotionFromServer(rawEmotion);
+    final parsed = _resolveEmotion(rawEmotion);
     _idleEmotionTimer?.cancel();
     setState(() {
       _currentEmotion = parsed;
@@ -201,7 +210,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     _idleEmotionTimer = Timer(const Duration(seconds: 6), () {
       if (mounted) {
         setState(() {
-          _currentEmotion = FaceEmotion.neutral;
+          _currentEmotion = FaceEmotion.happy;
         });
       }
     });
@@ -216,7 +225,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       final dynamic emotion = message['emotion'];
       if (emotion is String && emotion.isNotEmpty) {
         _idleEmotionTimer?.cancel();
-        _currentEmotion = RobotFace.faceEmotionFromServer(emotion);
+        _currentEmotion = _resolveEmotion(emotion);
       }
 
       if (type == 'hello') {

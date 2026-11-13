@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ai_assistant/utils/app_theme.dart';
 
 class DiscoveryScreen extends StatelessWidget {
   const DiscoveryScreen({super.key});
@@ -13,12 +14,12 @@ class DiscoveryScreen extends StatelessWidget {
             style: TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 28,
-              color: Colors.black,
+              color: AppTheme.textColor,
             ),
           ),
           elevation: 0,
           scrolledUnderElevation: 0,
-          backgroundColor: const Color(0xFFF8F9FA),
+          backgroundColor: AppTheme.backgroundColor,
           centerTitle: false,
           titleSpacing: 20,
           toolbarHeight: 65,
@@ -36,7 +37,7 @@ class DiscoveryScreen extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      color: AppTheme.textColor,
                     ),
                   ),
                 ),
@@ -50,7 +51,7 @@ class DiscoveryScreen extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      color: AppTheme.textColor,
                     ),
                   ),
                 ),
@@ -249,11 +250,12 @@ class DiscoveryScreen extends StatelessWidget {
       width: 200,
       margin: const EdgeInsets.only(right: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.surfaceColor,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withOpacity(0.3),
             blurRadius: 10,
             spreadRadius: 0,
             offset: const Offset(0, 2),
@@ -309,15 +311,15 @@ class DiscoveryScreen extends StatelessWidget {
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
-                          color: Colors.black87,
+                          color: AppTheme.textColor,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         description,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 13,
-                          color: Colors.grey.shade600,
+                          color: AppTheme.secondaryTextColor,
                         ),
                       ),
                       const SizedBox(height: 8),

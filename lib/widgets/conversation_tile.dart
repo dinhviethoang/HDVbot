@@ -4,6 +4,7 @@ import 'package:timeago/timeago.dart' as timeago;
 import 'package:ai_assistant/models/conversation.dart';
 import 'package:ai_assistant/models/xiaozhi_config.dart';
 import 'package:ai_assistant/providers/config_provider.dart';
+import 'package:ai_assistant/utils/app_theme.dart';
 
 class ConversationTile extends StatelessWidget {
   final Conversation conversation;
@@ -22,12 +23,12 @@ class ConversationTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.surfaceColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade100),
+        border: Border.all(color: AppTheme.borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withOpacity(0.2),
             blurRadius: 4,
             spreadRadius: 0,
             offset: const Offset(0, 2),
@@ -60,7 +61,7 @@ class ConversationTile extends StatelessWidget {
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 16,
-                                    color: Colors.black,
+                                    color: AppTheme.textColor,
                                   ),
                                 ),
                                 const SizedBox(width: 6),
@@ -70,9 +71,9 @@ class ConversationTile extends StatelessWidget {
                           ),
                           Text(
                             _formatTime(conversation.lastMessageTime),
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 14,
-                              color: Colors.grey.shade500,
+                              color: AppTheme.secondaryTextColor,
                             ),
                           ),
                         ],
@@ -82,9 +83,9 @@ class ConversationTile extends StatelessWidget {
                         conversation.lastMessage,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 14,
-                          color: Colors.grey.shade600,
+                          color: AppTheme.secondaryTextColor,
                         ),
                       ),
                     ],
@@ -92,9 +93,9 @@ class ConversationTile extends StatelessWidget {
                 ),
                 Container(
                   margin: const EdgeInsets.only(left: 8),
-                  child: Icon(
+                  child: const Icon(
                     Icons.chevron_right,
-                    color: Colors.grey.shade300,
+                    color: AppTheme.secondaryTextColor,
                     size: 20,
                   ),
                 ),
@@ -127,24 +128,32 @@ class ConversationTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: Colors.purple.shade50,
+        color: AppTheme.backgroundColor,
         borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: AppTheme.primaryColor.withOpacity(0.4)),
       ),
       child: Text(
         label,
-        style: TextStyle(
+        style: const TextStyle(
           fontSize: 12,
-          color: Colors.purple.shade600,
+          color: AppTheme.primaryColor,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
   }
 
   Widget _buildAvatar() {
-    return CircleAvatar(
-      radius: 24,
-      backgroundColor: Colors.purple.shade400,
-      child: const Icon(Icons.mic, color: Colors.white, size: 24),
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: AppTheme.primaryColor.withOpacity(0.5)),
+      ),
+      child: const CircleAvatar(
+        radius: 24,
+        backgroundColor: AppTheme.surfaceColor,
+        child: Icon(Icons.mic, color: AppTheme.primaryColor, size: 24),
+      ),
     );
   }
 

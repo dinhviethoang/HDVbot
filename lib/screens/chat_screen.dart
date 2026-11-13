@@ -13,6 +13,7 @@ import 'package:ai_assistant/services/xiaozhi_ota_service.dart';
 import 'package:ai_assistant/utils/device_util.dart';
 import 'package:ai_assistant/widgets/message_bubble.dart';
 import 'package:ai_assistant/screens/voice_call_screen.dart';
+import 'package:ai_assistant/utils/app_theme.dart';
 
 class ChatScreen extends StatefulWidget {
   final Conversation conversation;
@@ -59,10 +60,10 @@ class _ChatScreenState extends State<ChatScreen> {
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
-        statusBarBrightness: Brightness.light,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
         systemNavigationBarColor: Colors.transparent,
-        systemNavigationBarIconBrightness: Brightness.dark,
+        systemNavigationBarIconBrightness: Brightness.light,
         systemNavigationBarDividerColor: Colors.transparent,
       ),
     );
@@ -71,10 +72,10 @@ class _ChatScreenState extends State<ChatScreen> {
       SystemChrome.setSystemUIOverlayStyle(
         const SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.dark,
-          statusBarBrightness: Brightness.light,
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
           systemNavigationBarColor: Colors.transparent,
-          systemNavigationBarIconBrightness: Brightness.dark,
+          systemNavigationBarIconBrightness: Brightness.light,
           systemNavigationBarDividerColor: Colors.transparent,
         ),
       );
@@ -315,18 +316,18 @@ class _ChatScreenState extends State<ChatScreen> {
     );
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 1,
+        backgroundColor: AppTheme.backgroundColor,
+        elevation: 0,
         toolbarHeight: 70,
         systemOverlayStyle: const SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.dark,
-          statusBarBrightness: Brightness.light,
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black, size: 26),
+          icon: const Icon(Icons.arrow_back, color: AppTheme.primaryColor, size: 26),
           onPressed: () {
             if (_xiaozhiService != null) {
               _xiaozhiService!.stopPlayback();
@@ -339,19 +340,12 @@ class _ChatScreenState extends State<ChatScreen> {
             Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.purple.withOpacity(0.3),
-                    blurRadius: 8,
-                    spreadRadius: 0,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
+                border: Border.all(color: AppTheme.primaryColor.withOpacity(0.5)),
               ),
-              child: CircleAvatar(
+              child: const CircleAvatar(
                 radius: 20,
-                backgroundColor: Colors.purple.shade400,
-                child: const Icon(Icons.mic, color: Colors.white, size: 22),
+                backgroundColor: AppTheme.surfaceColor,
+                child: Icon(Icons.mic, color: AppTheme.primaryColor, size: 22),
               ),
             ),
             const SizedBox(width: 12),
@@ -362,7 +356,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   Text(
                     widget.conversation.title,
                     style: const TextStyle(
-                      color: Colors.black,
+                      color: AppTheme.textColor,
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
                     ),
@@ -374,13 +368,14 @@ class _ChatScreenState extends State<ChatScreen> {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.purple.shade50,
+                      color: AppTheme.surfaceColor,
                       borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppTheme.primaryColor.withOpacity(0.4)),
                     ),
                     child: const Text(
                       'Thoại Xiaozhi',
                       style: TextStyle(
-                        color: Colors.purple,
+                        color: AppTheme.primaryColor,
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                       ),
@@ -412,10 +407,11 @@ class _ChatScreenState extends State<ChatScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
+                      color: AppTheme.surfaceColor,
                       borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppTheme.primaryColor.withOpacity(0.4)),
                     ),
-                    child: const Icon(Icons.phone, color: Colors.black, size: 18),
+                    child: const Icon(Icons.phone, color: AppTheme.primaryColor, size: 18),
                   ),
                 ),
               ),
@@ -574,11 +570,12 @@ class _ChatScreenState extends State<ChatScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.surfaceColor,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withOpacity(0.2),
             blurRadius: 6,
             spreadRadius: 0,
             offset: const Offset(0, 2),
@@ -592,10 +589,10 @@ class _ChatScreenState extends State<ChatScreen> {
             height: 10,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: isConnected ? Colors.green : Colors.red,
+              color: isConnected ? Colors.green : AppTheme.errorColor,
               boxShadow: [
                 BoxShadow(
-                  color: (isConnected ? Colors.green : Colors.red).withOpacity(0.4),
+                  color: (isConnected ? Colors.green : AppTheme.errorColor).withOpacity(0.4),
                   blurRadius: 4,
                   spreadRadius: 1,
                 ),
@@ -607,12 +604,12 @@ class _ChatScreenState extends State<ChatScreen> {
             isConnected ? 'Đã kết nối' : 'Chưa kết nối',
             style: TextStyle(
               fontSize: 13,
-              color: isConnected ? Colors.green : Colors.red,
+              color: isConnected ? Colors.green : AppTheme.errorColor,
               fontWeight: FontWeight.w500,
             ),
           ),
           const SizedBox(width: 12),
-          Container(width: 1, height: 16, color: Colors.grey.withOpacity(0.3)),
+          Container(width: 1, height: 16, color: AppTheme.borderColor),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -620,7 +617,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   ? xiaozhiConfig.websocketUrl
                   : 'Chưa cấu hình URL',
               style: const TextStyle(
-                color: Colors.black54,
+                color: AppTheme.secondaryTextColor,
                 fontSize: 12,
                 fontWeight: FontWeight.w400,
               ),
@@ -638,10 +635,10 @@ class _ChatScreenState extends State<ChatScreen> {
         final messages = provider.getMessages(widget.conversation.id);
 
         if (messages.isEmpty) {
-          return Center(
+          return const Center(
             child: Text(
               'Bắt đầu cuộc trò chuyện',
-              style: TextStyle(color: Colors.grey.shade400, fontSize: 16),
+              style: TextStyle(color: AppTheme.secondaryTextColor, fontSize: 16),
             ),
           );
         }
@@ -698,10 +695,11 @@ class _ChatScreenState extends State<ChatScreen> {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.surfaceColor,
+        border: const Border(top: BorderSide(color: AppTheme.borderColor)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withOpacity(0.3),
             blurRadius: 10,
             spreadRadius: 0,
             offset: const Offset(0, -4),
@@ -722,11 +720,12 @@ class _ChatScreenState extends State<ChatScreen> {
               maxWidth: MediaQuery.of(context).size.width * 0.85,
             ),
             decoration: BoxDecoration(
-              color: const Color(0xFFF5F7F9),
+              color: AppTheme.backgroundColor,
               borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: AppTheme.borderColor),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.07),
+                  color: Colors.black.withOpacity(0.2),
                   blurRadius: 8,
                   spreadRadius: 0,
                   offset: const Offset(0, 3),
@@ -741,7 +740,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     decoration: const InputDecoration(
                       hintText: 'Nhập tin nhắn...',
                       hintStyle: TextStyle(
-                        color: Color(0xFF9CA3AF),
+                        color: AppTheme.secondaryTextColor,
                         fontSize: 16,
                       ),
                       border: InputBorder.none,
@@ -751,7 +750,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
                     ),
                     style: const TextStyle(
-                      color: Color(0xFF1F2937),
+                      color: AppTheme.textColor,
                       fontSize: 16,
                     ),
                     maxLines: 1,
@@ -764,7 +763,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 IconButton(
                   icon: const Icon(
                     Icons.mic,
-                    color: Color.fromARGB(255, 108, 108, 112),
+                    color: AppTheme.primaryColor,
                     size: 24,
                   ),
                   onPressed: () {
@@ -787,10 +786,11 @@ class _ChatScreenState extends State<ChatScreen> {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.surfaceColor,
+        border: const Border(top: BorderSide(color: AppTheme.borderColor)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withOpacity(0.3),
             blurRadius: 10,
             spreadRadius: 0,
             offset: const Offset(0, -4),
@@ -856,13 +856,20 @@ class _ChatScreenState extends State<ChatScreen> {
                 decoration: BoxDecoration(
                   color: _isRecording
                       ? _isCancelling
-                          ? Colors.red.shade50
-                          : Colors.purple.shade50
-                      : const Color(0xFFF5F7F9),
+                          ? AppTheme.errorColor.withOpacity(0.2)
+                          : AppTheme.primaryColor.withOpacity(0.2)
+                      : AppTheme.backgroundColor,
                   borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: _isRecording
+                        ? _isCancelling
+                            ? AppTheme.errorColor
+                            : AppTheme.primaryColor
+                        : AppTheme.borderColor,
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.07),
+                      color: Colors.black.withOpacity(0.2),
                       blurRadius: 8,
                       spreadRadius: 0,
                       offset: const Offset(0, 3),
@@ -884,12 +891,12 @@ class _ChatScreenState extends State<ChatScreen> {
                         style: TextStyle(
                           color: _isRecording
                               ? _isCancelling
-                                  ? Colors.red
-                                  : Colors.purple.shade700
-                              : const Color.fromARGB(255, 9, 9, 9),
+                                  ? AppTheme.errorColor
+                                  : AppTheme.primaryColor
+                              : AppTheme.textColor,
                           fontSize: 16,
                           fontWeight: _isRecording
-                              ? FontWeight.w500
+                              ? FontWeight.w600
                               : FontWeight.normal,
                         ),
                       ),
@@ -902,11 +909,12 @@ class _ChatScreenState extends State<ChatScreen> {
           const SizedBox(width: 10),
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppTheme.backgroundColor,
               shape: BoxShape.circle,
+              border: Border.all(color: AppTheme.borderColor),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withOpacity(0.3),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -928,11 +936,11 @@ class _ChatScreenState extends State<ChatScreen> {
                     _isCancelling = false;
                   });
                 },
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
+                child: const Padding(
+                  padding: EdgeInsets.all(12.0),
                   child: Icon(
                     Icons.keyboard,
-                    color: Colors.grey.shade700,
+                    color: AppTheme.primaryColor,
                     size: 22,
                   ),
                 ),
@@ -949,7 +957,7 @@ class _ChatScreenState extends State<ChatScreen> {
       key: const ValueKey('send_button'),
       icon: Icon(
         Icons.send_rounded,
-        color: hasText ? Colors.black : const Color(0xFFC4C9D2),
+        color: hasText ? AppTheme.primaryColor : AppTheme.secondaryTextColor.withOpacity(0.4),
         size: 24,
       ),
       onPressed: hasText ? _sendMessage : null,
@@ -1020,19 +1028,22 @@ class _ChatScreenState extends State<ChatScreen> {
       content: Text(
         message,
         style: const TextStyle(
-          color: Colors.white,
+          color: AppTheme.textColor,
           fontWeight: FontWeight.w500,
         ),
       ),
       behavior: SnackBarBehavior.floating,
-      backgroundColor: Colors.black.withOpacity(0.7),
+      backgroundColor: AppTheme.surfaceColor,
       duration: const Duration(seconds: 2),
       margin: EdgeInsets.only(
         bottom: MediaQuery.of(context).size.height - 120,
         left: 16,
         right: 16,
       ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: AppTheme.borderColor),
+      ),
       elevation: 8,
     );
 
@@ -1045,9 +1056,17 @@ class _ChatScreenState extends State<ChatScreen> {
 
     if (_isOtaActivating) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng kích hoạt thiết bị trên xiaozhi.me trước khi trò chuyện'),
-          backgroundColor: Colors.orange,
+        SnackBar(
+          content: const Text(
+            'Vui lòng kích hoạt thiết bị trên xiaozhi.me trước khi trò chuyện',
+            style: TextStyle(color: AppTheme.textColor),
+          ),
+          backgroundColor: AppTheme.surfaceColor,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+            side: const BorderSide(color: AppTheme.primaryColor),
+          ),
         ),
       );
       return;
@@ -1180,7 +1199,7 @@ class _ChatScreenState extends State<ChatScreen> {
             width: 3,
             height: 20 * _waveHeights[index],
             decoration: BoxDecoration(
-              color: Colors.purple.withOpacity(0.6),
+              color: AppTheme.primaryColor.withOpacity(0.8),
               borderRadius: BorderRadius.circular(1.5),
             ),
             curve: Curves.easeInOut,

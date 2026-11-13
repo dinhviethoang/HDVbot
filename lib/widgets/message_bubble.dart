@@ -6,6 +6,7 @@ import 'package:ai_assistant/models/message.dart';
 import 'package:provider/provider.dart';
 import 'package:ai_assistant/providers/conversation_provider.dart';
 import 'package:ai_assistant/models/conversation.dart';
+import 'package:ai_assistant/utils/app_theme.dart';
 
 class MessageBubble extends StatelessWidget {
   final Message message;
@@ -53,12 +54,13 @@ class MessageBubble extends StatelessWidget {
                             vertical: 12,
                           ),
                   decoration: BoxDecoration(
-                    color: isUser ? const Color(0xFF4B5563) : Colors.white,
+                    color: isUser ? const Color(0xFF1E293B) : AppTheme.surfaceColor,
                     borderRadius: BorderRadius.circular(12),
-                    border:
-                        !isUser
-                            ? Border.all(color: Colors.grey.shade200)
-                            : null,
+                    border: Border.all(
+                      color: isUser
+                          ? AppTheme.primaryColor.withOpacity(0.35)
+                          : AppTheme.borderColor,
+                    ),
                   ),
                   // 检查是否为图片消息
                   child:
@@ -68,8 +70,8 @@ class MessageBubble extends StatelessWidget {
                           ? _buildImageContent(context)
                           : Text(
                             message.content,
-                            style: TextStyle(
-                              color: isUser ? Colors.white : Colors.black87,
+                            style: const TextStyle(
+                              color: AppTheme.textColor,
                               fontSize: 15,
                               // 添加高性能的文本渲染选项
                               height: 1.3,
@@ -81,7 +83,7 @@ class MessageBubble extends StatelessWidget {
                 if (message.timestamp != null)
                   Text(
                     _formatTime(message.timestamp),
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                    style: const TextStyle(fontSize: 12, color: AppTheme.secondaryTextColor),
                   ),
               ],
             ),
@@ -98,13 +100,19 @@ class MessageBubble extends StatelessWidget {
       return const SizedBox(width: 32, height: 32);
     }
 
-    return CircleAvatar(
-      radius: 16,
-      backgroundColor: Colors.purple.shade400,
-      child: const Icon(
-        Icons.mic,
-        size: 18,
-        color: Colors.white,
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: AppTheme.primaryColor.withOpacity(0.5)),
+      ),
+      child: const CircleAvatar(
+        radius: 16,
+        backgroundColor: AppTheme.surfaceColor,
+        child: Icon(
+          Icons.mic,
+          size: 18,
+          color: AppTheme.primaryColor,
+        ),
       ),
     );
   }
@@ -123,7 +131,7 @@ class MessageBubble extends StatelessWidget {
   Widget _buildPulsatingDot(BuildContext context, int index) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 2),
-      child: _ThinkingDot(index: index, color: Colors.grey.shade600),
+      child: _ThinkingDot(index: index, color: AppTheme.primaryColor),
     );
   }
 
@@ -139,12 +147,13 @@ class MessageBubble extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           decoration: BoxDecoration(
-            color: Colors.grey.shade100,
+            color: AppTheme.surfaceColor,
             borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppTheme.borderColor),
           ),
           child: Text(
             message.content,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            style: const TextStyle(fontSize: 12, color: AppTheme.secondaryTextColor),
           ),
         ),
       ),
@@ -184,8 +193,8 @@ class MessageBubble extends StatelessWidget {
               padding: const EdgeInsets.only(top: 8, left: 8, right: 8),
               child: Text(
                 message.content,
-                style: TextStyle(
-                  color: isUser ? Colors.white : Colors.black87,
+                style: const TextStyle(
+                  color: AppTheme.textColor,
                   fontSize: 13,
                 ),
               ),
@@ -203,24 +212,25 @@ class MessageBubble extends StatelessWidget {
       width: 150,
       height: 150,
       decoration: BoxDecoration(
-        color: isUser ? Colors.grey.shade700 : Colors.grey.shade200,
+        color: isUser ? const Color(0xFF1E293B) : AppTheme.surfaceColor,
         borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppTheme.borderColor),
       ),
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
+            const Icon(
               Icons.image_not_supported,
-              color: isUser ? Colors.white70 : Colors.black45,
+              color: AppTheme.secondaryTextColor,
               size: 40,
             ),
             const SizedBox(height: 8),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: isUser ? Colors.white70 : Colors.black45,
+              style: const TextStyle(
+                color: AppTheme.secondaryTextColor,
                 fontSize: 12,
               ),
             ),

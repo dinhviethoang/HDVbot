@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ai_assistant/utils/app_theme.dart';
 
 class SettingsSection extends StatelessWidget {
   final String title;
@@ -19,17 +20,19 @@ class SettingsSection extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Text(
             title,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.primary,
+              color: AppTheme.primaryColor,
             ),
           ),
         ),
         Card(
+          color: AppTheme.surfaceColor,
           margin: const EdgeInsets.symmetric(horizontal: 8),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: AppTheme.borderColor),
           ),
           child: Column(
             children: children,

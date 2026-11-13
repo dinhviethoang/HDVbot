@@ -6,6 +6,7 @@ import 'package:ai_assistant/models/conversation.dart';
 import 'package:ai_assistant/models/xiaozhi_config.dart';
 import 'package:ai_assistant/screens/chat_screen.dart';
 import 'package:ai_assistant/screens/settings_screen.dart';
+import 'package:ai_assistant/utils/app_theme.dart';
 
 class ConversationTypeScreen extends StatefulWidget {
   const ConversationTypeScreen({super.key});
@@ -26,19 +27,19 @@ class _ConversationTypeScreenState extends State<ConversationTypeScreen> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 1,
+        backgroundColor: AppTheme.backgroundColor,
+        elevation: 0,
         toolbarHeight: 70,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black, size: 26),
+          icon: const Icon(Icons.arrow_back, color: AppTheme.primaryColor, size: 26),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: const Text(
           'Tạo cuộc hội thoại mới',
           style: TextStyle(
-            color: Colors.black,
+            color: AppTheme.textColor,
             fontWeight: FontWeight.bold,
             fontSize: 22,
           ),
@@ -57,15 +58,15 @@ class _ConversationTypeScreenState extends State<ConversationTypeScreen> {
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Colors.black87,
+                          color: AppTheme.textColor,
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(
+                      const Text(
                         'Cuộc trò chuyện sẽ kết nối qua giọng nói và văn bản với dịch vụ đã chọn.',
                         style: TextStyle(
                           fontSize: 14,
-                          color: Colors.grey.shade600,
+                          color: AppTheme.secondaryTextColor,
                         ),
                       ),
                       const SizedBox(height: 20),
@@ -89,13 +90,14 @@ class _ConversationTypeScreenState extends State<ConversationTypeScreen> {
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: Colors.purple.shade50,
+                color: AppTheme.surfaceColor,
                 shape: BoxShape.circle,
+                border: Border.all(color: AppTheme.borderColor),
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.settings_voice_outlined,
                 size: 64,
-                color: Colors.purple.shade400,
+                color: AppTheme.primaryColor,
               ),
             ),
             const SizedBox(height: 24),
@@ -104,15 +106,16 @@ class _ConversationTypeScreenState extends State<ConversationTypeScreen> {
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
+                color: AppTheme.textColor,
               ),
             ),
             const SizedBox(height: 8),
-            Text(
+            const Text(
               'Vui lòng thêm cấu hình kết nối Xiaozhi trong Cài đặt trước khi tạo cuộc hội thoại mới.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey.shade600,
+                color: AppTheme.secondaryTextColor,
               ),
             ),
             const SizedBox(height: 24),
@@ -128,14 +131,14 @@ class _ConversationTypeScreenState extends State<ConversationTypeScreen> {
                   ),
                 );
               },
-              icon: const Icon(Icons.add, color: Colors.white),
+              icon: const Icon(Icons.add, color: Color(0xFF070B12)),
               label: const Text(
                 'Thêm cấu hình Xiaozhi',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.black,
-                foregroundColor: Colors.white,
+                backgroundColor: AppTheme.primaryColor,
+                foregroundColor: const Color(0xFF070B12),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 24,
                   vertical: 14,
@@ -157,15 +160,15 @@ class _ConversationTypeScreenState extends State<ConversationTypeScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: isSelected ? const Color(0xFFF9F6FE) : Colors.white,
+        color: isSelected ? AppTheme.surfaceColor : AppTheme.backgroundColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isSelected ? Colors.purple.shade600 : Colors.grey.shade300,
-          width: isSelected ? 2 : 1,
+          color: isSelected ? AppTheme.primaryColor : AppTheme.borderColor,
+          width: isSelected ? 1.5 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withOpacity(0.2),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -187,11 +190,11 @@ class _ConversationTypeScreenState extends State<ConversationTypeScreen> {
                 CircleAvatar(
                   radius: 22,
                   backgroundColor: isSelected
-                      ? Colors.purple.shade600
-                      : Colors.grey.shade200,
+                      ? AppTheme.primaryColor
+                      : AppTheme.surfaceColor,
                   child: Icon(
                     Icons.mic,
-                    color: isSelected ? Colors.white : Colors.grey.shade600,
+                    color: isSelected ? const Color(0xFF070B12) : AppTheme.secondaryTextColor,
                     size: 22,
                   ),
                 ),
@@ -205,14 +208,15 @@ class _ConversationTypeScreenState extends State<ConversationTypeScreen> {
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
+                          color: AppTheme.textColor,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         config.websocketUrl,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 13,
-                          color: Colors.grey.shade600,
+                          color: AppTheme.secondaryTextColor,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -223,7 +227,7 @@ class _ConversationTypeScreenState extends State<ConversationTypeScreen> {
                 Radio<String>(
                   value: config.id,
                   groupValue: _selectedConfig?.id,
-                  activeColor: Colors.purple.shade600,
+                  activeColor: AppTheme.primaryColor,
                   onChanged: (value) {
                     setState(() {
                       _selectedConfig = config;
@@ -247,10 +251,11 @@ class _ConversationTypeScreenState extends State<ConversationTypeScreen> {
         16 + MediaQuery.of(context).padding.bottom,
       ),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.surfaceColor,
+        border: const Border(top: BorderSide(color: AppTheme.borderColor)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withOpacity(0.3),
             blurRadius: 8,
             offset: const Offset(0, -2),
           ),
@@ -261,9 +266,10 @@ class _ConversationTypeScreenState extends State<ConversationTypeScreen> {
         child: ElevatedButton(
           onPressed: _selectedConfig != null ? _createConversation : null,
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.black,
-            foregroundColor: Colors.white,
-            disabledBackgroundColor: Colors.grey.shade300,
+            backgroundColor: AppTheme.primaryColor,
+            foregroundColor: const Color(0xFF070B12),
+            disabledBackgroundColor: AppTheme.borderColor,
+            disabledForegroundColor: AppTheme.secondaryTextColor,
             padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
