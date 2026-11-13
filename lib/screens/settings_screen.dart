@@ -387,7 +387,9 @@ class _SettingsScreenState extends State<SettingsScreen>
                         ),
                       ),
                       Text(
-                        config.websocketUrl,
+                        config.websocketUrl.isNotEmpty
+                            ? config.websocketUrl
+                            : 'OTA: ${config.otaUrl}',
                         style: TextStyle(
                           color: Colors.grey.shade600,
                           fontSize: 14,
@@ -549,9 +551,10 @@ class _SettingsScreenState extends State<SettingsScreen>
 
   void _showAddXiaozhiConfigDialog() {
     final nameController = TextEditingController(text: 'HDVbot');
-    final websocketUrlController = TextEditingController(
-      text: 'wss://api.tenclass.net/xiaozhi/v1/',
+    final otaUrlController = TextEditingController(
+      text: XiaozhiConfig.defaultOtaUrl,
     );
+    final websocketUrlController = TextEditingController();
     final tokenController = TextEditingController();
     final macAddressController = TextEditingController();
 
@@ -641,7 +644,35 @@ class _SettingsScreenState extends State<SettingsScreen>
                     ),
                     const SizedBox(height: 16),
                     const Text(
-                      'Địa chỉ WebSocket',
+                      'Địa chỉ OTA',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: TextField(
+                        controller: otaUrlController,
+                        decoration: InputDecoration(
+                          hintText: XiaozhiConfig.defaultOtaUrl,
+                          hintStyle: TextStyle(color: Colors.grey.shade400),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          border: InputBorder.none,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Địa chỉ WebSocket (Tùy chọn)',
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -657,7 +688,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                       child: TextField(
                         controller: websocketUrlController,
                         decoration: InputDecoration(
-                          hintText: 'wss://api.tenclass.net/xiaozhi/v1/',
+                          hintText: 'Tự điền sau khi kích hoạt',
                           hintStyle: TextStyle(color: Colors.grey.shade400),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
@@ -666,6 +697,11 @@ class _SettingsScreenState extends State<SettingsScreen>
                           border: InputBorder.none,
                         ),
                       ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Tự điền sau khi kích hoạt OTA, không bắt buộc nhập',
+                      style: TextStyle(color: Colors.grey, fontSize: 12),
                     ),
                     const SizedBox(height: 16),
                     const Text(
@@ -732,13 +768,15 @@ class _SettingsScreenState extends State<SettingsScreen>
                     ElevatedButton(
                       onPressed: () {
                         final name = nameController.text.trim();
+                        final otaUrl = otaUrlController.text.trim();
                         final websocketUrl = websocketUrlController.text.trim();
                         final macAddress = macAddressController.text.trim();
+                        final token = tokenController.text.trim();
 
-                        if (name.isEmpty || websocketUrl.isEmpty) {
+                        if (name.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: const Text('Vui lòng điền đầy đủ Tên và Địa chỉ URL'),
+                              content: const Text('Vui lòng nhập Tên dịch vụ'),
                               backgroundColor: Colors.red.shade600,
                               behavior: SnackBarBehavior.floating,
                               shape: RoundedRectangleBorder(
@@ -756,8 +794,10 @@ class _SettingsScreenState extends State<SettingsScreen>
                         ).addXiaozhiConfig(
                           name,
                           websocketUrl,
+                          otaUrl: otaUrl.isNotEmpty ? otaUrl : XiaozhiConfig.defaultOtaUrl,
                           customMacAddress:
                               macAddress.isNotEmpty ? macAddress : null,
+                          token: token.isNotEmpty ? token : null,
                         );
 
                         Navigator.pop(context);
@@ -819,6 +859,9 @@ class _SettingsScreenState extends State<SettingsScreen>
 
   void _showEditXiaozhiConfigDialog(XiaozhiConfig config) {
     final nameController = TextEditingController(text: config.name);
+    final otaUrlController = TextEditingController(
+      text: config.otaUrl.isNotEmpty ? config.otaUrl : XiaozhiConfig.defaultOtaUrl,
+    );
     final websocketUrlController = TextEditingController(
       text: config.websocketUrl,
     );
@@ -905,7 +948,35 @@ class _SettingsScreenState extends State<SettingsScreen>
                     ),
                     const SizedBox(height: 16),
                     const Text(
-                      'Địa chỉ WebSocket',
+                      'Địa chỉ OTA',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: TextField(
+                        controller: otaUrlController,
+                        decoration: InputDecoration(
+                          hintText: XiaozhiConfig.defaultOtaUrl,
+                          hintStyle: TextStyle(color: Colors.grey.shade400),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          border: InputBorder.none,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Địa chỉ WebSocket (Tùy chọn)',
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -921,7 +992,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                       child: TextField(
                         controller: websocketUrlController,
                         decoration: InputDecoration(
-                          hintText: 'wss://api.tenclass.net/xiaozhi/v1/',
+                          hintText: 'Tự điền sau khi kích hoạt',
                           hintStyle: TextStyle(color: Colors.grey.shade400),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
@@ -930,6 +1001,11 @@ class _SettingsScreenState extends State<SettingsScreen>
                           border: InputBorder.none,
                         ),
                       ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Tự điền sau khi kích hoạt OTA, không bắt buộc nhập',
+                      style: TextStyle(color: Colors.grey, fontSize: 12),
                     ),
                     const SizedBox(height: 16),
                     const Text(
@@ -990,14 +1066,15 @@ class _SettingsScreenState extends State<SettingsScreen>
                     ElevatedButton(
                       onPressed: () {
                         final name = nameController.text.trim();
+                        final otaUrl = otaUrlController.text.trim();
                         final websocketUrl = websocketUrlController.text.trim();
                         final macAddress = macAddressController.text.trim();
                         final token = tokenController.text.trim();
 
-                        if (name.isEmpty || websocketUrl.isEmpty) {
+                        if (name.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: const Text('Vui lòng điền đầy đủ Tên và Địa chỉ URL'),
+                              content: const Text('Vui lòng nhập Tên dịch vụ'),
                               backgroundColor: Colors.red.shade600,
                               behavior: SnackBarBehavior.floating,
                               shape: RoundedRectangleBorder(
@@ -1011,6 +1088,7 @@ class _SettingsScreenState extends State<SettingsScreen>
 
                         final updatedConfig = config.copyWith(
                           name: name,
+                          otaUrl: otaUrl.isNotEmpty ? otaUrl : XiaozhiConfig.defaultOtaUrl,
                           websocketUrl: websocketUrl,
                           macAddress:
                               macAddress.isNotEmpty

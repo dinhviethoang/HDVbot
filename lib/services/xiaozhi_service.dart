@@ -46,6 +46,7 @@ class XiaozhiService {
 
   final String websocketUrl;
   final String macAddress;
+  final String? clientId;
   final String token;
   String? _sessionId; // 会话ID将由服务器提供
 
@@ -59,26 +60,51 @@ class XiaozhiService {
   bool _hasStartedCall = false;
   MessageListener? _messageListener;
 
-  /// 工厂构造函数，实现单例模式
+  /// 工厂构造函数，实现单例模式（若配置变动则重新初始化）
   factory XiaozhiService({
     required String websocketUrl,
     required String macAddress,
+    String? clientId,
     required String token,
     String? sessionId,
   }) {
-    _instance ??= XiaozhiService._internal(
-      websocketUrl: websocketUrl,
-      macAddress: macAddress,
-      token: token,
-      sessionId: sessionId,
-    );
+    if (_instance != null) {
+      if (_instance!.websocketUrl != websocketUrl ||
+          _instance!.token != token ||
+          _instance!.macAddress != macAddress ||
+          _instance!.clientId != clientId) {
+        _instance!.disconnect();
+        _instance = XiaozhiService._internal(
+          websocketUrl: websocketUrl,
+          macAddress: macAddress,
+          clientId: clientId,
+          token: token,
+          sessionId: sessionId,
+        );
+      }
+    } else {
+      _instance = XiaozhiService._internal(
+        websocketUrl: websocketUrl,
+        macAddress: macAddress,
+        clientId: clientId,
+        token: token,
+        sessionId: sessionId,
+      );
+    }
     return _instance!;
+  }
+
+  /// 重置单例实例
+  static void resetInstance() {
+    _instance?.disconnect();
+    _instance = null;
   }
 
   /// 内部构造函数
   XiaozhiService._internal({
     required this.websocketUrl,
     required this.macAddress,
+    this.clientId,
     required this.token,
     String? sessionId,
   }) {
@@ -140,6 +166,7 @@ class XiaozhiService {
     // 初始化WebSocket管理器，启用 token
     _webSocketManager = XiaozhiWebSocketManager(
       deviceId: macAddress,
+      clientId: clientId,
       enableToken: true,
     );
 
@@ -185,6 +212,7 @@ class XiaozhiService {
       // 创建WebSocket管理器
       _webSocketManager = XiaozhiWebSocketManager(
         deviceId: macAddress,
+        clientId: clientId,
         enableToken: true,
       );
 
@@ -321,6 +349,7 @@ class XiaozhiService {
       // 使用 WebSocketManager 连接
       _webSocketManager = XiaozhiWebSocketManager(
         deviceId: macAddress,
+        clientId: clientId,
         enableToken: true,
       );
       _webSocketManager!.addListener(_onWebSocketEvent);

@@ -1,53 +1,69 @@
 import 'dart:io';
-import 'dart:convert';
+import 'dart:math' as math;
 import 'package:device_info_plus/device_info_plus.dart';
-import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
-/// 设备工具类
+/// Thiết bị & định danh máy (MAC & Client-Id)
 class DeviceUtil {
   static const String TAG = "DeviceUtil";
   static const String DEVICE_ID_KEY = "device_id";
+  static const String MAC_KEY = "hdvbot_mac";
+  static const String CLIENT_ID_KEY = "hdvbot_client_id";
 
-  /// 获取设备ID，优先从缓存获取，没有则生成新的
-  static Future<String> getDeviceId() async {
-    // 尝试从缓存获取设备ID
+  /// Kiểm tra chuỗi có đúng định dạng địa chỉ MAC 6 byte (aa:bb:cc:dd:ee:ff)
+  static bool isValidMac(String? str) {
+    if (str == null || str.trim().isEmpty) return false;
+    final macRegex = RegExp(r'^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$');
+    return macRegex.hasMatch(str.trim());
+  }
+
+  /// Tạo 1 MAC ngẫu nhiên dạng "02:xx:xx:xx:xx:xx" (byte đầu 02 = locally administered)
+  static String generateRandomMac() {
+    final rand = math.Random();
+    final bytes = [
+      0x02,
+      rand.nextInt(256),
+      rand.nextInt(256),
+      rand.nextInt(256),
+      rand.nextInt(256),
+      rand.nextInt(256),
+    ];
+    return bytes
+        .map((b) => b.toRadixString(16).padLeft(2, '0'))
+        .join(':')
+        .toLowerCase();
+  }
+
+  /// Lấy địa chỉ MAC thiết bị, lưu vĩnh viễn trong SharedPreferences (key "hdvbot_mac")
+  static Future<String> getDeviceMac() async {
     final prefs = await SharedPreferences.getInstance();
-    String? deviceId = prefs.getString(DEVICE_ID_KEY);
-
-    // 如果已有设备ID，直接返回
-    if (deviceId != null && deviceId.isNotEmpty) {
-      print('$TAG: 从缓存获取设备ID: $deviceId');
-      return deviceId;
+    String? mac = prefs.getString(MAC_KEY);
+    if (mac != null && isValidMac(mac)) {
+      return mac.toLowerCase();
     }
+    mac = generateRandomMac();
+    await prefs.setString(MAC_KEY, mac);
+    print('$TAG: Đã khởi tạo và lưu địa chỉ MAC vĩnh viễn: $mac');
+    return mac;
+  }
 
-    // 根据平台获取设备信息
-    final deviceInfo = DeviceInfoPlugin();
-    if (Platform.isAndroid) {
-      // Android设备
-      final androidInfo = await deviceInfo.androidInfo;
-      deviceId = _formatDeviceName(
-        '${androidInfo.manufacturer}_${androidInfo.model}',
-      );
-    } else if (Platform.isIOS) {
-      // iOS设备
-      final iosInfo = await deviceInfo.iosInfo;
-      deviceId = _formatDeviceName(iosInfo.name);
+  /// Lấy Client-Id UUID v4, lưu vĩnh viễn trong SharedPreferences (key "hdvbot_client_id")
+  static Future<String> getClientId() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? clientId = prefs.getString(CLIENT_ID_KEY);
+    if (clientId != null && clientId.isNotEmpty) {
+      return clientId;
     }
+    clientId = const Uuid().v4();
+    await prefs.setString(CLIENT_ID_KEY, clientId);
+    print('$TAG: Đã khởi tạo và lưu Client-Id UUID v4: $clientId');
+    return clientId;
+  }
 
-    // 如果无法获取设备信息，生成一个随机UUID
-    if (deviceId == null || deviceId.isEmpty) {
-      deviceId = const Uuid().v4();
-      print('$TAG: 生成随机设备ID: $deviceId');
-    } else {
-      print('$TAG: 从设备获取名称: $deviceId');
-    }
-
-    // 保存设备ID到缓存
-    await prefs.setString(DEVICE_ID_KEY, deviceId);
-
-    return deviceId;
+  /// Lấy ID thiết bị (trả về MAC chuẩn cho server Xiaozhi)
+  static Future<String> getDeviceId() async {
+    return await getDeviceMac();
   }
 
   /// 格式化设备名称，移除特殊字符并规范化格式

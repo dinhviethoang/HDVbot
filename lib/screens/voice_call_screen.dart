@@ -7,8 +7,11 @@ import 'package:ai_assistant/models/conversation.dart';
 import 'package:ai_assistant/models/message.dart';
 import 'package:ai_assistant/models/xiaozhi_config.dart';
 import 'package:ai_assistant/providers/conversation_provider.dart';
+import 'package:ai_assistant/providers/config_provider.dart';
 import 'package:ai_assistant/services/xiaozhi_service.dart';
+import 'package:ai_assistant/services/xiaozhi_ota_service.dart';
 import 'package:ai_assistant/utils/app_theme.dart';
+import 'package:ai_assistant/utils/device_util.dart';
 import 'package:ai_assistant/widgets/robot_eyes.dart';
 
 /// Màn hình gọi thoại toàn màn hình phong cách mặt robot HDVbot
@@ -29,7 +32,18 @@ class VoiceCallScreen extends StatefulWidget {
 
 class _VoiceCallScreenState extends State<VoiceCallScreen>
     with SingleTickerProviderStateMixin {
-  late XiaozhiService _xiaozhiService;
+  XiaozhiService? _xiaozhiService;
+  final XiaozhiOtaService _otaService = XiaozhiOtaService();
+  OtaCancellationToken? _otaCancelToken;
+  late XiaozhiConfig _currentConfig;
+
+  // Trạng thái kích hoạt OTA
+  bool _showActivationOverlay = false;
+  bool _isOtaConnecting = false;
+  String? _activationCode;
+  String _otaStatus = 'Đang kết nối máy chủ...';
+  String? _otaError;
+
   bool _isConnected = false;
   bool _isSpeaking = false; // Micro máy khách đang thu âm
   bool _isRobotSpeaking = false; // Robot đang phát giọng TTS
@@ -48,6 +62,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   @override
   void initState() {
     super.initState();
+    _currentConfig = widget.xiaozhiConfig;
 
     // Thiết lập thanh trạng thái trong suốt nền tối
     SystemChrome.setSystemUIOverlayStyle(
@@ -79,21 +94,100 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       duration: const Duration(milliseconds: 1000),
     )..repeat(reverse: true);
 
-    // Khởi tạo dịch vụ Xiaozhi
-    _xiaozhiService = XiaozhiService(
-      websocketUrl: widget.xiaozhiConfig.websocketUrl,
-      macAddress: widget.xiaozhiConfig.macAddress,
-      token: widget.xiaozhiConfig.token,
-      sessionId: widget.conversation.id,
-    );
-
-    // Đăng ký nhận thông điệp máy chủ và sự kiện dịch vụ
-    _xiaozhiService.setMessageListener(_handleServerMessage);
-    _xiaozhiService.addListener(_handleServiceEvent);
-
-    // Kết nối vào chế độ gọi thoại
-    _connectToVoiceService();
+    // Bắt đầu quy trình kích hoạt OTA và kết nối
+    _startActivationFlow();
     _startAudioVisualizer();
+  }
+
+  /// Khởi chạy quy trình kích hoạt OTA
+  Future<void> _startActivationFlow() async {
+    _otaCancelToken?.cancel();
+    final cancelToken = OtaCancellationToken();
+    _otaCancelToken = cancelToken;
+
+    setState(() {
+      _showActivationOverlay = true;
+      _isOtaConnecting = true;
+      _activationCode = null;
+      _otaError = null;
+      _otaStatus = 'Đang kết nối máy chủ...';
+    });
+
+    try {
+      final mac = DeviceUtil.isValidMac(_currentConfig.macAddress)
+          ? _currentConfig.macAddress
+          : await DeviceUtil.getDeviceMac();
+      final clientId = await DeviceUtil.getClientId();
+
+      if (_currentConfig.macAddress != mac) {
+        _currentConfig = _currentConfig.copyWith(macAddress: mac);
+      }
+
+      final result = await _otaService.ensureActivated(
+        otaUrl: _currentConfig.otaUrl,
+        mac: mac,
+        clientId: clientId,
+        onActivationCode: (code) {
+          if (!mounted || cancelToken.isCancelled) return;
+          setState(() {
+            _activationCode = code;
+            _isOtaConnecting = false;
+            _otaStatus = 'Đang chờ kích hoạt...';
+          });
+        },
+        onStatusChange: (status) {
+          if (!mounted || cancelToken.isCancelled) return;
+          setState(() {
+            _otaStatus = status;
+          });
+        },
+        cancelToken: cancelToken,
+      );
+
+      if (!mounted || cancelToken.isCancelled) return;
+
+      // Cập nhật cấu hình lưu trữ
+      final updatedConfig = _currentConfig.copyWith(
+        websocketUrl: result.websocketUrl,
+        token: result.websocketToken,
+        macAddress: mac,
+      );
+      _currentConfig = updatedConfig;
+
+      await Provider.of<ConfigProvider>(
+        context,
+        listen: false,
+      ).updateXiaozhiConfig(updatedConfig);
+
+      if (!mounted || cancelToken.isCancelled) return;
+
+      setState(() {
+        _showActivationOverlay = false;
+        _isOtaConnecting = false;
+        _otaError = null;
+      });
+
+      // Tạo và kết nối XiaozhiService với websocket url & token từ OTA
+      _xiaozhiService = XiaozhiService(
+        websocketUrl: updatedConfig.websocketUrl,
+        macAddress: updatedConfig.macAddress,
+        clientId: clientId,
+        token: updatedConfig.token,
+        sessionId: widget.conversation.id,
+      );
+
+      _xiaozhiService!.setMessageListener(_handleServerMessage);
+      _xiaozhiService!.addListener(_handleServiceEvent);
+
+      _connectToVoiceService();
+    } catch (e) {
+      if (!mounted || cancelToken.isCancelled) return;
+      print('Lỗi kích hoạt OTA VoiceCallScreen: $e');
+      setState(() {
+        _isOtaConnecting = false;
+        _otaError = e.toString().replaceFirst('Exception: ', '');
+      });
+    }
   }
 
   void _handleServerMessage(dynamic message) {
@@ -202,23 +296,27 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
 
   @override
   void dispose() {
-    _xiaozhiService.removeListener(_handleServiceEvent);
-    _xiaozhiService.switchToChatMode();
+    _otaCancelToken?.cancel();
+    _xiaozhiService?.removeListener(_handleServiceEvent);
+    _xiaozhiService?.switchToChatMode();
     _callTimer?.cancel();
     _audioVisualizerTimer?.cancel();
     _animationController.dispose();
-    _xiaozhiService.stopPlayback();
+    _xiaozhiService?.stopPlayback();
     super.dispose();
   }
 
   void _connectToVoiceService() async {
+    if (_xiaozhiService == null) return;
+
     setState(() {
       _statusText = 'Đang chuẩn bị...';
       _hasError = false;
     });
 
     try {
-      await _xiaozhiService.switchToVoiceCallMode();
+      await _xiaozhiService!.switchToVoiceCallMode();
+      await _xiaozhiService!.connectVoiceCall();
 
       setState(() {
         _statusText = 'Đã kết nối';
@@ -311,7 +409,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
 
       try {
         _xiaozhiService
-            .startListeningCall()
+            ?.startListeningCall()
             .then((_) {
               if (mounted) {
                 _showCustomSnackbar(
@@ -352,7 +450,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
 
   // Gửi lệnh ngắt lời robot
   void _sendAbortMessage() {
-    _xiaozhiService.sendAbortMessage();
+    _xiaozhiService?.sendAbortMessage();
     setState(() {
       _isRobotSpeaking = false;
       _isThinking = false;
@@ -379,6 +477,9 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
 
   /// Xác định trạng thái thật của mắt robot từ trạng thái cuộc gọi
   RobotEyeState _resolveRobotEyeState() {
+    if (_showActivationOverlay) {
+      return RobotEyeState.idle;
+    }
     if (!_isConnected || _hasError) {
       return RobotEyeState.error;
     }
@@ -402,43 +503,351 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Thanh tiêu đề HUD nhỏ gọn
-            _buildTopHudBar(),
+      body: Stack(
+        children: [
+          SafeArea(
+            child: Column(
+              children: [
+                // Thanh tiêu đề HUD nhỏ gọn
+                _buildTopHudBar(),
 
-            // Phần lớn màn hình: Mắt robot Mecha HUD
-            Expanded(
-              flex: 6,
-              child: Center(
+                // Phần lớn màn hình: Mắt robot Mecha HUD
+                Expanded(
+                  flex: 6,
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: RobotEyes(
+                        state: robotEyeState,
+                        volume: currentVolume,
+                        height: 220,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Dòng trạng thái cuộc gọi HUD
+                _buildStatusBadge(robotEyeState),
+                const SizedBox(height: 10),
+
+                // Phụ đề câu nói gần nhất (người dùng hoặc robot)
+                _buildSubtitlePanel(),
+                const SizedBox(height: 12),
+
+                // Thanh hiển thị dải âm thanh nhịp điệu HUD
+                _buildAudioVisualizer(),
+                const SizedBox(height: 16),
+
+                // Các nút điều khiển cuộc gọi
+                _buildBottomControls(),
+                const SizedBox(height: 14),
+              ],
+            ),
+          ),
+          if (_showActivationOverlay) _buildActivationOverlay(),
+        ],
+      ),
+    );
+  }
+
+  /// Lớp phủ kích hoạt thiết bị hiển thị mã 6 số phong cách Cyber HUD Cyan
+  Widget _buildActivationOverlay() {
+    return Positioned.fill(
+      child: Container(
+        color: AppTheme.backgroundColor.withOpacity(0.96),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Thanh tiêu đề với nút quay lại
+              Align(
+                alignment: Alignment.topLeft,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: RobotEyes(
-                    state: robotEyeState,
-                    volume: currentVolume,
-                    height: 220,
+                  padding: const EdgeInsets.only(left: 8.0, top: 4.0),
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.arrow_back,
+                      color: AppTheme.primaryColor,
+                      size: 26,
+                    ),
+                    onPressed: () {
+                      _otaCancelToken?.cancel();
+                      Navigator.pop(context);
+                    },
                   ),
                 ),
               ),
-            ),
 
-            // Dòng trạng thái cuộc gọi HUD
-            _buildStatusBadge(robotEyeState),
-            const SizedBox(height: 10),
+              Expanded(
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24.0,
+                        vertical: 28.0,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppTheme.surfaceColor,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: AppTheme.primaryColor.withOpacity(0.4),
+                          width: 1.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppTheme.primaryColor.withOpacity(0.15),
+                            blurRadius: 20,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Tiêu đề
+                          const Text(
+                            'KÍCH HOẠT THIẾT BỊ',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 2.0,
+                              color: AppTheme.primaryColor,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
 
-            // Phụ đề câu nói gần nhất (người dùng hoặc robot)
-            _buildSubtitlePanel(),
-            const SizedBox(height: 12),
+                          if (_otaError != null) ...[
+                            // Trạng thái LỖI
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppTheme.errorColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppTheme.errorColor.withOpacity(0.4),
+                                ),
+                              ),
+                              child: Column(
+                                children: [
+                                  const Icon(
+                                    Icons.error_outline_rounded,
+                                    color: AppTheme.errorColor,
+                                    size: 40,
+                                  ),
+                                  const SizedBox(height: 10),
+                                  const Text(
+                                    'Lỗi kết nối máy chủ',
+                                    style: TextStyle(
+                                      color: AppTheme.errorColor,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  SelectableText(
+                                    _otaError!,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: AppTheme.textColor,
+                                      fontSize: 13,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            ElevatedButton.icon(
+                              onPressed: _startActivationFlow,
+                              icon: const Icon(Icons.refresh, size: 20),
+                              label: const Text(
+                                'Thử lại',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.primaryColor,
+                                foregroundColor: AppTheme.backgroundColor,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 28,
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ] else if (_isOtaConnecting && _activationCode == null) ...[
+                            // Trạng thái ĐANG GỌI OTA
+                            const SizedBox(height: 20),
+                            const SizedBox(
+                              width: 48,
+                              height: 48,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 3.5,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  AppTheme.primaryColor,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            const Text(
+                              'Đang kết nối máy chủ...',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: AppTheme.textColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _otaStatus.isNotEmpty
+                                  ? _otaStatus
+                                  : 'Đang gửi yêu cầu kiểm tra OTA',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppTheme.secondaryTextColor,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                          ] else if (_activationCode != null) ...[
+                            // Trạng thái HIỂN THỊ MÃ KÍCH HOẠT
+                            const Text(
+                              'MÃ KÍCH HOẠT',
+                              style: TextStyle(
+                                fontSize: 13,
+                                letterSpacing: 1.2,
+                                color: AppTheme.secondaryTextColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppTheme.backgroundColor.withOpacity(0.8),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: AppTheme.accentColor.withOpacity(0.5),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Text(
+                                _activationCode!.split('').join(' '),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 44,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 6.0,
+                                  color: AppTheme.accentColor,
+                                  shadows: [
+                                    Shadow(
+                                      color: AppTheme.accentColor.withOpacity(0.8),
+                                      blurRadius: 18,
+                                    ),
+                                    Shadow(
+                                      color: AppTheme.primaryColor.withOpacity(0.6),
+                                      blurRadius: 36,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppTheme.backgroundColor.withOpacity(0.5),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Text(
+                                'Vào xiaozhi.me -> Bảng điều khiển -> Thêm thiết bị -> nhập mã này',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTheme.textColor,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      AppTheme.accentColor,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    _otaStatus.isNotEmpty
+                                        ? _otaStatus
+                                        : 'Đang chờ kích hoạt...',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: AppTheme.secondaryTextColor,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            OutlinedButton.icon(
+                              onPressed: _startActivationFlow,
+                              icon: const Icon(Icons.refresh, size: 18),
+                              label: const Text(
+                                'Lấy mã mới',
+                                style: TextStyle(fontSize: 14),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppTheme.accentColor,
+                                side: BorderSide(
+                                  color: AppTheme.accentColor.withOpacity(0.6),
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                              ),
+                            ),
+                          ],
 
-            // Thanh hiển thị dải âm thanh nhịp điệu HUD
-            _buildAudioVisualizer(),
-            const SizedBox(height: 16),
-
-            // Các nút điều khiển cuộc gọi
-            _buildBottomControls(),
-            const SizedBox(height: 14),
-          ],
+                          const SizedBox(height: 16),
+                          Text(
+                            'MAC: ${_currentConfig.macAddress}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppTheme.secondaryTextColor,
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -454,7 +863,8 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
           // Nút quay lại bo vát góc
           InkWell(
             onTap: () {
-              _xiaozhiService.stopPlayback();
+              _otaCancelToken?.cancel();
+              _xiaozhiService?.stopPlayback();
               Navigator.pop(context);
             },
             borderRadius: BorderRadius.circular(8),
@@ -675,7 +1085,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
           backgroundColor: AppTheme.errorColor,
           size: 60,
           onPressed: () async {
-            await _xiaozhiService.sendAbortMessage();
+            await _xiaozhiService?.sendAbortMessage();
             if (mounted) {
               Navigator.pop(context);
             }

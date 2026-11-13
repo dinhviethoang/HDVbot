@@ -1,9 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:device_info_plus/device_info_plus.dart';
-import 'package:crypto/crypto.dart';
 import 'package:ai_assistant/models/xiaozhi_config.dart';
+import 'package:ai_assistant/utils/device_util.dart';
 
 class ConfigProvider extends ChangeNotifier {
   List<XiaozhiConfig> _xiaozhiConfigs = [];
@@ -26,6 +25,37 @@ class ConfigProvider extends ChangeNotifier {
             .map((json) => XiaozhiConfig.fromJson(jsonDecode(json)))
             .toList();
 
+    final defaultMac = await DeviceUtil.getDeviceMac();
+    bool needSave = false;
+
+    // Tự tạo cấu hình mặc định nếu danh sách trống (lần đầu mở app)
+    if (_xiaozhiConfigs.isEmpty) {
+      _xiaozhiConfigs.add(
+        XiaozhiConfig(
+          id: 'default_hdvbot',
+          name: 'HDVbot',
+          otaUrl: XiaozhiConfig.defaultOtaUrl,
+          websocketUrl: '',
+          macAddress: defaultMac,
+          token: 'test-token',
+        ),
+      );
+      needSave = true;
+    } else {
+      // Mọi cấu hình có macAddress không đúng định dạng MAC thì tự thay bằng MAC chuẩn
+      for (int i = 0; i < _xiaozhiConfigs.length; i++) {
+        final config = _xiaozhiConfigs[i];
+        if (!DeviceUtil.isValidMac(config.macAddress)) {
+          _xiaozhiConfigs[i] = config.copyWith(macAddress: defaultMac);
+          needSave = true;
+        }
+      }
+    }
+
+    if (needSave) {
+      await _saveConfigs();
+    }
+
     _isLoaded = true;
     notifyListeners();
   }
@@ -43,15 +73,24 @@ class ConfigProvider extends ChangeNotifier {
     String name,
     String websocketUrl, {
     String? customMacAddress,
+    String? otaUrl,
+    String? token,
   }) async {
-    final macAddress = customMacAddress ?? await _getDeviceMacAddress();
+    final defaultMac = await DeviceUtil.getDeviceMac();
+    final macAddress =
+        (customMacAddress != null && DeviceUtil.isValidMac(customMacAddress))
+            ? customMacAddress.toLowerCase()
+            : defaultMac;
 
     final newConfig = XiaozhiConfig(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       name: name,
+      otaUrl: (otaUrl != null && otaUrl.isNotEmpty)
+          ? otaUrl
+          : XiaozhiConfig.defaultOtaUrl,
       websocketUrl: websocketUrl,
       macAddress: macAddress,
-      token: 'test-token',
+      token: (token != null && token.isNotEmpty) ? token : 'test-token',
     );
 
     _xiaozhiConfigs.add(newConfig);
@@ -76,59 +115,7 @@ class ConfigProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<String> _getSimpleDeviceId() async {
-    final deviceInfo = DeviceInfoPlugin();
-    String deviceId = '';
-
-    try {
-      try {
-        final androidInfo = await deviceInfo.androidInfo;
-        deviceId = androidInfo.id;
-      } catch (_) {
-        try {
-          final iosInfo = await deviceInfo.iosInfo;
-          deviceId = iosInfo.identifierForVendor ?? '';
-        } catch (_) {
-          final webInfo = await deviceInfo.webBrowserInfo;
-          deviceId = webInfo.userAgent ?? '';
-        }
-      }
-    } catch (e) {
-      deviceId = DateTime.now().millisecondsSinceEpoch.toString();
-    }
-
-    if (deviceId.isEmpty) {
-      deviceId = DateTime.now().millisecondsSinceEpoch.toString();
-    }
-
-    return deviceId;
-  }
-
-  String _generateMacFromDeviceId(String deviceId) {
-    final bytes = utf8.encode(deviceId);
-    final digest = md5.convert(bytes);
-    final hash = digest.toString();
-
-    final List<String> macParts = [];
-    for (int i = 0; i < 6; i++) {
-      macParts.add(hash.substring(i * 2, i * 2 + 2));
-    }
-
-    return macParts.join(':');
-  }
-
   Future<String> _getDeviceMacAddress() async {
-    final deviceId = await _getSimpleDeviceId();
-
-    if (_isMacAddress(deviceId)) {
-      return deviceId;
-    }
-
-    return _generateMacFromDeviceId(deviceId);
-  }
-
-  bool _isMacAddress(String str) {
-    final macRegex = RegExp(r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$');
-    return macRegex.hasMatch(str);
+    return await DeviceUtil.getDeviceMac();
   }
 }

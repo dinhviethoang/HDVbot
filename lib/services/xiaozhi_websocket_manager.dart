@@ -28,6 +28,7 @@ class XiaozhiWebSocketManager {
   WebSocketChannel? _channel;
   String? _serverUrl;
   String? _deviceId;
+  String? _clientId;
   String? _token;
   bool _enableToken;
 
@@ -37,9 +38,13 @@ class XiaozhiWebSocketManager {
   StreamSubscription? _streamSubscription;
 
   /// 构造函数
-  XiaozhiWebSocketManager({required String deviceId, bool enableToken = false})
-    : _deviceId = deviceId,
-      _enableToken = enableToken;
+  XiaozhiWebSocketManager({
+    required String deviceId,
+    String? clientId,
+    bool enableToken = false,
+  }) : _deviceId = deviceId,
+       _clientId = clientId,
+       _enableToken = enableToken;
 
   /// 添加事件监听器
   void addListener(XiaozhiWebSocketListener listener) {
@@ -95,7 +100,7 @@ class XiaozhiWebSocketManager {
         // 创建headers
         Map<String, dynamic> headers = {
           'device-id': _deviceId ?? '',
-          'client-id': _deviceId ?? '',
+          'client-id': _clientId ?? _deviceId ?? '',
           'protocol-version': '1',
         };
 
@@ -132,6 +137,12 @@ class XiaozhiWebSocketManager {
             String deviceIdMessage = 'Device-ID: $_deviceId';
             _channel!.sink.add(deviceIdMessage);
             print('$TAG: 发送设备ID消息: $deviceIdMessage');
+
+            if (_clientId != null && _clientId!.isNotEmpty) {
+              String clientIdMessage = 'Client-Id: $_clientId';
+              _channel!.sink.add(clientIdMessage);
+              print('$TAG: 发送Client-Id消息: $clientIdMessage');
+            }
           }
         });
       }

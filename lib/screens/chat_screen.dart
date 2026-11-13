@@ -9,6 +9,8 @@ import 'package:ai_assistant/models/xiaozhi_config.dart';
 import 'package:ai_assistant/providers/conversation_provider.dart';
 import 'package:ai_assistant/providers/config_provider.dart';
 import 'package:ai_assistant/services/xiaozhi_service.dart';
+import 'package:ai_assistant/services/xiaozhi_ota_service.dart';
+import 'package:ai_assistant/utils/device_util.dart';
 import 'package:ai_assistant/widgets/message_bubble.dart';
 import 'package:ai_assistant/screens/voice_call_screen.dart';
 
@@ -26,6 +28,17 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
   bool _isLoading = false;
   XiaozhiService? _xiaozhiService;
+  final XiaozhiOtaService _otaService = XiaozhiOtaService();
+  OtaCancellationToken? _otaCancelToken;
+  late XiaozhiConfig _currentConfig;
+
+  // Trạng thái kích hoạt OTA
+  bool _isOtaActivating = false;
+  bool _isOtaLoading = false;
+  String? _activationCode;
+  String _otaStatus = '';
+  String? _otaError;
+
   Timer? _connectionCheckTimer;
   Timer? _autoReconnectTimer;
 
@@ -80,7 +93,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
           if (wasConnected &&
               !_xiaozhiService!.isConnected &&
-              _autoReconnectTimer == null) {
+              _autoReconnectTimer == null &&
+              !_isOtaActivating) {
             _scheduleReconnect();
           }
         }
@@ -92,7 +106,10 @@ class _ChatScreenState extends State<ChatScreen> {
     _autoReconnectTimer?.cancel();
     _autoReconnectTimer = Timer(const Duration(seconds: 5), () async {
       _autoReconnectTimer = null;
-      if (mounted && _xiaozhiService != null && !_xiaozhiService!.isConnected) {
+      if (mounted &&
+          _xiaozhiService != null &&
+          !_xiaozhiService!.isConnected &&
+          !_isOtaActivating) {
         try {
           await _xiaozhiService!.connect();
           setState(() {});
@@ -108,6 +125,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    _otaCancelToken?.cancel();
     _connectionCheckTimer?.cancel();
     _autoReconnectTimer?.cancel();
     _waveAnimationTimer?.cancel();
@@ -125,31 +143,111 @@ class _ChatScreenState extends State<ChatScreen> {
     final configProvider = Provider.of<ConfigProvider>(context, listen: false);
     final String? configId = widget.conversation.configId;
 
-    final xiaozhiConfig = configProvider.xiaozhiConfigs.firstWhere(
+    _currentConfig = configProvider.xiaozhiConfigs.firstWhere(
       (config) => config.id == configId,
       orElse: () => configProvider.xiaozhiConfigs.isNotEmpty
           ? configProvider.xiaozhiConfigs.first
           : XiaozhiConfig(
-              id: '',
+              id: 'default_hdvbot',
               name: 'HDVbot',
-              websocketUrl: 'wss://api.tenclass.net/xiaozhi/v1/',
+              otaUrl: XiaozhiConfig.defaultOtaUrl,
+              websocketUrl: '',
               macAddress: '',
               token: 'test-token',
             ),
     );
 
-    _xiaozhiService = XiaozhiService(
-      websocketUrl: xiaozhiConfig.websocketUrl,
-      macAddress: xiaozhiConfig.macAddress,
-      token: xiaozhiConfig.token,
-      sessionId: widget.conversation.id,
-    );
+    await _startOtaActivation();
+  }
 
-    _xiaozhiService!.setMessageListener(_handleXiaozhiMessage);
-    _xiaozhiService!.addListener(_handleXiaozhiEvent);
+  /// Quy trình kiểm tra và chờ kích hoạt OTA trước khi kết nối WebSocket
+  Future<void> _startOtaActivation() async {
+    _otaCancelToken?.cancel();
+    final cancelToken = OtaCancellationToken();
+    _otaCancelToken = cancelToken;
 
-    await _xiaozhiService!.connect();
-    if (mounted) setState(() {});
+    final mac = DeviceUtil.isValidMac(_currentConfig.macAddress)
+        ? _currentConfig.macAddress
+        : await DeviceUtil.getDeviceMac();
+    final clientId = await DeviceUtil.getClientId();
+
+    if (_currentConfig.macAddress != mac) {
+      _currentConfig = _currentConfig.copyWith(macAddress: mac);
+    }
+
+    setState(() {
+      _isOtaActivating = true;
+      _isOtaLoading = true;
+      _otaError = null;
+      _activationCode = null;
+      _otaStatus = 'Đang kết nối máy chủ...';
+    });
+
+    try {
+      final result = await _otaService.ensureActivated(
+        otaUrl: _currentConfig.otaUrl,
+        mac: mac,
+        clientId: clientId,
+        onActivationCode: (code) {
+          if (!mounted || cancelToken.isCancelled) return;
+          setState(() {
+            _activationCode = code;
+            _isOtaLoading = false;
+            _otaStatus = 'Đang chờ kích hoạt...';
+          });
+        },
+        onStatusChange: (status) {
+          if (!mounted || cancelToken.isCancelled) return;
+          setState(() {
+            _otaStatus = status;
+          });
+        },
+        cancelToken: cancelToken,
+      );
+
+      if (!mounted || cancelToken.isCancelled) return;
+
+      final updatedConfig = _currentConfig.copyWith(
+        websocketUrl: result.websocketUrl,
+        token: result.websocketToken,
+        macAddress: mac,
+      );
+      _currentConfig = updatedConfig;
+
+      await Provider.of<ConfigProvider>(
+        context,
+        listen: false,
+      ).updateXiaozhiConfig(updatedConfig);
+
+      if (!mounted || cancelToken.isCancelled) return;
+
+      setState(() {
+        _isOtaActivating = false;
+        _isOtaLoading = false;
+        _otaError = null;
+      });
+
+      _xiaozhiService = XiaozhiService(
+        websocketUrl: updatedConfig.websocketUrl,
+        macAddress: updatedConfig.macAddress,
+        clientId: clientId,
+        token: updatedConfig.token,
+        sessionId: widget.conversation.id,
+      );
+
+      _xiaozhiService!.setMessageListener(_handleXiaozhiMessage);
+      _xiaozhiService!.addListener(_handleXiaozhiEvent);
+
+      await _xiaozhiService!.connect();
+      if (mounted) setState(() {});
+    } catch (e) {
+      if (!mounted || cancelToken.isCancelled) return;
+      print('Lỗi kích hoạt OTA ChatScreen: $e');
+      setState(() {
+        _isOtaLoading = false;
+        _otaError = e.toString().replaceFirst('Exception: ', '');
+      });
+    }
   }
 
   void _handleXiaozhiMessage(dynamic message) {
@@ -327,9 +425,131 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
+          if (_isOtaActivating) _buildActivationBanner(),
           _buildXiaozhiInfo(),
           Expanded(child: _buildMessageList()),
           _buildInputArea(),
+        ],
+      ),
+    );
+  }
+
+  /// Banner hiển thị mã kích hoạt 6 số trong màn hình Chat
+  Widget _buildActivationBanner() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.4)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF00E5FF).withOpacity(0.12),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'KÍCH HOẠT THIẾT BỊ',
+            style: TextStyle(
+              color: Color(0xFF00E5FF),
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+              letterSpacing: 1.5,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (_otaError != null) ...[
+            Text(
+              _otaError!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.redAccent, fontSize: 13),
+            ),
+            const SizedBox(height: 10),
+            ElevatedButton.icon(
+              onPressed: _startOtaActivation,
+              icon: const Icon(Icons.refresh, size: 16),
+              label: const Text('Thử lại'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF00E5FF),
+                foregroundColor: Colors.black,
+              ),
+            ),
+          ] else if (_isOtaLoading && _activationCode == null) ...[
+            const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00E5FF)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              _otaStatus.isNotEmpty ? _otaStatus : 'Đang kết nối máy chủ...',
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+          ] else if (_activationCode != null) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.6),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFF00F0FF).withOpacity(0.5),
+                ),
+              ),
+              child: Text(
+                _activationCode!.split('').join(' '),
+                style: const TextStyle(
+                  color: Color(0xFF00F0FF),
+                  fontSize: 32,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 4.0,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Vào xiaozhi.me -> Bảng điều khiển -> Thêm thiết bị -> nhập mã này',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white, fontSize: 13),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(
+                  width: 12,
+                  height: 12,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Color(0xFF00F0FF),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _otaStatus.isNotEmpty ? _otaStatus : 'Đang chờ kích hoạt...',
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                const SizedBox(width: 12),
+                TextButton(
+                  onPressed: _startOtaActivation,
+                  child: const Text(
+                    'Lấy mã mới',
+                    style: TextStyle(color: Color(0xFF00F0FF)),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -823,6 +1043,16 @@ class _ChatScreenState extends State<ChatScreen> {
     final message = _textController.text.trim();
     if (message.isEmpty || _isLoading) return;
 
+    if (_isOtaActivating) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng kích hoạt thiết bị trên xiaozhi.me trước khi trò chuyện'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     _textController.clear();
 
     final conversationProvider = Provider.of<ConversationProvider>(
@@ -894,9 +1124,10 @@ class _ChatScreenState extends State<ChatScreen> {
       orElse: () => configProvider.xiaozhiConfigs.isNotEmpty
           ? configProvider.xiaozhiConfigs.first
           : XiaozhiConfig(
-              id: '',
+              id: 'default_hdvbot',
               name: 'HDVbot',
-              websocketUrl: 'wss://api.tenclass.net/xiaozhi/v1/',
+              otaUrl: XiaozhiConfig.defaultOtaUrl,
+              websocketUrl: '',
               macAddress: '',
               token: 'test-token',
             ),
@@ -915,9 +1146,7 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       ),
     ).then((_) {
-      if (_xiaozhiService != null) {
-        _xiaozhiService!.connect();
-      }
+      _initXiaozhiService();
     });
   }
 

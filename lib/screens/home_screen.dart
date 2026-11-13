@@ -40,6 +40,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final conversationProvider =
         Provider.of<ConversationProvider>(context, listen: false);
 
+    // Nếu chưa có cấu hình Xiaozhi nào thì tự tạo cấu hình mặc định (tên "HDVbot", otaUrl mặc định, websocketUrl rỗng)
+    if (configProvider.xiaozhiConfigs.isEmpty) {
+      await configProvider.addXiaozhiConfig(
+        'HDVbot',
+        '',
+        otaUrl: XiaozhiConfig.defaultOtaUrl,
+      );
+    }
+
     if (configProvider.xiaozhiConfigs.isNotEmpty) {
       final xiaozhiConfig = configProvider.xiaozhiConfigs.first;
       Conversation? conversation;
@@ -66,18 +75,6 @@ class _HomeScreenState extends State<HomeScreen> {
             builder: (context) => VoiceCallScreen(
               conversation: conversation!,
               xiaozhiConfig: xiaozhiConfig,
-            ),
-          ),
-        );
-      }
-    } else {
-      if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const SettingsScreen(
-              initialTab: 1,
-              autoShowAddDialog: true,
             ),
           ),
         );
