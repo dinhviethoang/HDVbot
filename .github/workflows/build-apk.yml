@@ -6,6 +6,9 @@ on:
       - rieng
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build Android Release APK
@@ -54,3 +57,14 @@ jobs:
           name: hdvbot-apk-release
           path: build/app/outputs/flutter-apk/*.apk
           retention-days: 7
+
+      - name: Rename APK for phone
+        run: cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk HDVbot.apk
+
+      - name: Publish Release with APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: HDVbot build ${{ github.run_number }}
+          files: HDVbot.apk
+          make_latest: true
