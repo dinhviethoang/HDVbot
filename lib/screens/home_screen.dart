@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:ai_assistant/providers/conversation_provider.dart';
 import 'package:ai_assistant/providers/config_provider.dart';
 import 'package:ai_assistant/models/conversation.dart';
+import 'package:ai_assistant/models/xiaozhi_config.dart';
 import 'package:ai_assistant/screens/chat_screen.dart';
 import 'package:ai_assistant/screens/settings_screen.dart';
 import 'package:ai_assistant/screens/conversation_type_screen.dart';
