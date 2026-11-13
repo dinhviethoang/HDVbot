@@ -196,7 +196,7 @@ class XiaozhiService {
     } catch (e) {
       print('$TAG: 连接失败: $e');
       _dispatchEvent(
-        XiaozhiServiceEvent(XiaozhiServiceEventType.error, '连接小智服务失败: $e'),
+        XiaozhiServiceEvent(XiaozhiServiceEventType.error, 'Kết nối đến dịch vụ Xiaozhi thất bại: $e'),
       );
     }
   }
@@ -271,7 +271,7 @@ class XiaozhiService {
       final timeoutTimer = Timer(const Duration(seconds: 15), () {
         if (!completer.isCompleted) {
           print('$TAG: 请求超时，15秒内没有收到响应');
-          completer.completeError('请求超时');
+          completer.completeError('Hết thời gian chờ phản hồi');
           removeListener(onceListener);
         }
       });
@@ -302,7 +302,7 @@ class XiaozhiService {
         if (status != PermissionStatus.granted) {
           print('$TAG: 麦克风权限被拒绝');
           _dispatchEvent(
-            XiaozhiServiceEvent(XiaozhiServiceEventType.error, '麦克风权限被拒绝'),
+            XiaozhiServiceEvent(XiaozhiServiceEventType.error, 'Quyền truy cập microphone bị từ chối'),
           );
           return;
         }
@@ -439,7 +439,7 @@ class XiaozhiService {
         if (status.isDenied) {
           print('$TAG: 麦克风权限被拒绝');
           _dispatchEvent(
-            XiaozhiServiceEvent(XiaozhiServiceEventType.error, '麦克风权限被拒绝'),
+            XiaozhiServiceEvent(XiaozhiServiceEventType.error, 'Quyền truy cập microphone bị từ chối'),
           );
           return;
         }
@@ -465,7 +465,7 @@ class XiaozhiService {
       print('$TAG: 已发送开始监听消息 (语音通话模式)');
     } catch (e) {
       print('$TAG: 开始监听失败: $e');
-      throw Exception('开始语音输入失败: $e');
+      throw Exception('Bắt đầu thu âm giọng nói thất bại: $e');
     }
   }
 
@@ -751,7 +751,7 @@ class XiaozhiService {
       });
     } catch (e) {
       print('$TAG: 开始监听失败: $e');
-      throw Exception('开始语音输入失败: $e');
+      throw Exception('Bắt đầu thu âm giọng nói thất bại: $e');
     }
   }
 

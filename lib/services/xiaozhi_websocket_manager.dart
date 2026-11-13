@@ -64,7 +64,7 @@ class XiaozhiWebSocketManager {
   Future<void> connect(String url, String token) async {
     if (url.isEmpty) {
       _dispatchEvent(
-        XiaozhiEvent(type: XiaozhiEventType.error, data: "WebSocket地址不能为空"),
+        XiaozhiEvent(type: XiaozhiEventType.error, data: "Địa chỉ WebSocket không được để trống"),
       );
       return;
     }

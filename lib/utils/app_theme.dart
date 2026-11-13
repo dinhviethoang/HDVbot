@@ -2,102 +2,159 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class AppTheme {
-  // 定义主要颜色
-  static const Color primaryColor = Colors.black;
-  static const Color accentColor = Colors.black;
-  static const Color textColor = Colors.black;
-  static const Color secondaryTextColor = Color(0xFF757575);
-  static const Color backgroundColor = Colors.white;
-  static const Color surfaceColor = Colors.white;
-  static const Color errorColor = Colors.red;
+  // Bảng màu Cyber HUD / Mecha Tech
+  // Nền đen - xanh thẫm, điểm nhấn Cyan, màu phụ Đỏ Neon
+  static const Color primaryColor = Color(0xFF00E5FF); // Cyber Cyan
+  static const Color accentColor = Color(0xFF00F0FF); // Neon Aqua
+  static const Color textColor = Color(0xFFE2E8F0); // Ice White
+  static const Color secondaryTextColor = Color(0xFF94A3B8); // Muted Slate
+  static const Color backgroundColor = Color(0xFF070B12); // Deep Space Black-Navy
+  static const Color surfaceColor = Color(0xFF0F172A); // Tech Panel Navy
+  static const Color errorColor = Color(0xFFFF1744); // Alert Crimson Red
 
-  // Light theme
-  static final ThemeData lightTheme = ThemeData(
-    brightness: Brightness.light,
-    primaryColor: primaryColor,
-    colorScheme: const ColorScheme.light(
-      primary: primaryColor,
-      secondary: accentColor,
-      surface: surfaceColor,
-      background: backgroundColor,
-      error: errorColor,
-      onPrimary: Colors.white,
-      onSecondary: Colors.white,
-      onSurface: textColor,
-      onBackground: textColor,
-      onError: Colors.white,
-    ),
-    scaffoldBackgroundColor: backgroundColor,
-    appBarTheme: const AppBarTheme(
-      color: backgroundColor,
-      elevation: 0,
-      iconTheme: IconThemeData(color: textColor),
-      titleTextStyle: TextStyle(
-        color: textColor,
-        fontSize: 24,
-        fontWeight: FontWeight.bold,
+  // Hằng số mở rộng cho phong cách Cyber/HUD
+  static const Color secondaryColor = Color(0xFFFF1744); // Phụ đỏ
+  static const Color cyanAccent = Color(0xFF00F0FF);
+  static const Color darkBackground = Color(0xFF070B12);
+  static const Color panelBackground = Color(0xFF0F172A);
+  static const Color borderColor = Color(0xFF1E293B);
+
+  // Tạo cấu hình ThemeData Cyber HUD thống nhất
+  static ThemeData _buildCyberTheme() {
+    return ThemeData(
+      brightness: Brightness.dark,
+      primaryColor: primaryColor,
+      scaffoldBackgroundColor: backgroundColor,
+      colorScheme: const ColorScheme.dark(
+        primary: primaryColor,
+        secondary: accentColor,
+        surface: surfaceColor,
+        background: backgroundColor,
+        error: errorColor,
+        onPrimary: Color(0xFF070B12),
+        onSecondary: Color(0xFF070B12),
+        onSurface: textColor,
+        onBackground: textColor,
+        onError: Colors.white,
       ),
-      systemOverlayStyle: SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
-        statusBarBrightness: Brightness.light,
-        systemNavigationBarColor: Colors.transparent,
-        systemNavigationBarIconBrightness: Brightness.dark,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: backgroundColor,
+        elevation: 0,
+        iconTheme: IconThemeData(color: primaryColor),
+        titleTextStyle: TextStyle(
+          color: textColor,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.2,
+        ),
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
+          systemNavigationBarColor: backgroundColor,
+          systemNavigationBarIconBrightness: Brightness.light,
+        ),
       ),
-    ),
-    textTheme: const TextTheme(
-      bodyLarge: TextStyle(color: textColor),
-      bodyMedium: TextStyle(color: textColor),
-      titleLarge: TextStyle(color: textColor, fontWeight: FontWeight.bold),
-      titleMedium: TextStyle(color: textColor, fontWeight: FontWeight.bold),
-      titleSmall: TextStyle(color: textColor, fontWeight: FontWeight.bold),
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
+      textTheme: const TextTheme(
+        bodyLarge: TextStyle(color: textColor, letterSpacing: 0.3),
+        bodyMedium: TextStyle(color: textColor, letterSpacing: 0.2),
+        titleLarge: TextStyle(
+          color: textColor,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.0,
+        ),
+        titleMedium: TextStyle(
+          color: textColor,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 0.8,
+        ),
+        titleSmall: TextStyle(
+          color: accentColor,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 0.6,
+        ),
+      ),
+      // Bo góc vát / cạnh (Beveled chamfer) phong cách cơ khí
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: primaryColor,
+          foregroundColor: const Color(0xFF070B12),
+          elevation: 2,
+          shape: const BeveledRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(6)),
+          ),
+          textStyle: const TextStyle(
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.1,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: primaryColor,
+          side: const BorderSide(color: primaryColor, width: 1.2),
+          shape: const BeveledRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(6)),
+          ),
+          textStyle: const TextStyle(
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.0,
+          ),
+        ),
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
         backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        foregroundColor: Color(0xFF070B12),
+        shape: BeveledRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(8)),
+        ),
       ),
-    ),
-    floatingActionButtonTheme: const FloatingActionButtonThemeData(
-      backgroundColor: primaryColor,
-      foregroundColor: Colors.white,
-    ),
-    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-      backgroundColor: Colors.white,
-      selectedItemColor: primaryColor,
-      unselectedItemColor: Color(0xFF757575),
-      type: BottomNavigationBarType.fixed,
-      elevation: 8,
-    ),
-    cardTheme: CardThemeData(
-      color: Colors.white,
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-    ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: Colors.white,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(24),
-        borderSide: BorderSide.none,
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: surfaceColor,
+        selectedItemColor: primaryColor,
+        unselectedItemColor: secondaryTextColor,
+        type: BottomNavigationBarType.fixed,
+        elevation: 8,
       ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-    ),
-  );
+      cardTheme: const CardTheme(
+        color: surfaceColor,
+        elevation: 2,
+        shape: BeveledRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(8)),
+          side: BorderSide(color: borderColor, width: 1),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: surfaceColor,
+        border: const OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(8)),
+          borderSide: BorderSide(color: borderColor),
+        ),
+        enabledBorder: const OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(8)),
+          borderSide: BorderSide(color: borderColor),
+        ),
+        focusedBorder: const OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(8)),
+          borderSide: BorderSide(color: primaryColor, width: 1.5),
+        ),
+        labelStyle: const TextStyle(color: secondaryTextColor),
+        hintStyle: const TextStyle(color: Color(0xFF475569)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      dialogTheme: const DialogTheme(
+        backgroundColor: surfaceColor,
+        shape: BeveledRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(10)),
+          side: BorderSide(color: primaryColor, width: 1),
+        ),
+      ),
+    );
+  }
 
-  // Dark theme (可以稍后完善)
-  static final ThemeData darkTheme = ThemeData(
-    brightness: Brightness.dark,
-    // 后续可以添加深色主题的具体样式
-    appBarTheme: const AppBarTheme(
-      systemOverlayStyle: SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
-        statusBarBrightness: Brightness.dark,
-        systemNavigationBarColor: Colors.transparent,
-        systemNavigationBarIconBrightness: Brightness.light,
-      ),
-    ),
-  );
+  // Cả lightTheme và darkTheme đều dùng phong cách Cyber HUD tối ưu cho HDVbot
+  static final ThemeData lightTheme = _buildCyberTheme();
+  static final ThemeData darkTheme = _buildCyberTheme();
 }

@@ -1,19 +1,18 @@
 import 'package:flutter/material.dart';
-import 'dart:math' as math;
 import 'package:provider/provider.dart';
 import 'package:ai_assistant/providers/theme_provider.dart';
 import 'package:ai_assistant/providers/config_provider.dart';
 import 'package:ai_assistant/models/xiaozhi_config.dart';
-import 'package:ai_assistant/models/dify_config.dart';
-import 'package:ai_assistant/models/minimax_config.dart';
-import 'package:ai_assistant/widgets/settings_section.dart';
-import 'package:ai_assistant/services/dify_service.dart';
-
-// 引入main.dart中定义的常量
-import 'package:ai_assistant/main.dart' show enableDebugTools;
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  final int initialTab;
+  final bool autoShowAddDialog;
+
+  const SettingsScreen({
+    super.key,
+    this.initialTab = 0,
+    this.autoShowAddDialog = false,
+  });
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -21,58 +20,28 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen>
     with SingleTickerProviderStateMixin {
-  // 移除单个Dify配置控制器
-  // final _difyApiKeyController = TextEditingController();
-  // final _difyApiUrlController = TextEditingController();
-
-  // 添加新Dify配置的控制器
-  final _newDifyNameController = TextEditingController();
-  final _newDifyApiKeyController = TextEditingController();
-  final _newDifyApiUrlController = TextEditingController();
-
   late TabController _tabController;
-  int _currentTabIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    final configProvider = Provider.of<ConfigProvider>(context, listen: false);
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: widget.initialTab.clamp(0, 1),
+    );
 
-    // 保存Provider引用，以便在dispose中安全使用
-    _configProvider = configProvider;
-
-    // 初始化选项卡控制器
-    _tabController = TabController(length: 4, vsync: this);
-    _tabController.addListener(() {
-      if (_tabController.indexIsChanging) {
-        setState(() {
-          _currentTabIndex = _tabController.index;
-        });
-      }
-    });
-
-    // 删除旧的单个配置初始化代码
+    if (widget.autoShowAddDialog) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showAddXiaozhiConfigDialog();
+      });
+    }
   }
-
-  // 存储ConfigProvider引用，避免在dispose中访问context
-  late final ConfigProvider _configProvider;
 
   @override
   void dispose() {
-    // 移除监听器
-    _configProvider.removeListener(_updateDifyControllers);
-
-    // 释放控制器资源
-    _newDifyNameController.dispose();
-    _newDifyApiKeyController.dispose();
-    _newDifyApiUrlController.dispose();
-
     _tabController.dispose();
     super.dispose();
-  }
-
-  void _updateDifyControllers() {
-    // 不再需要此方法，但保留空实现以避免其他地方的调用出错
   }
 
   @override
@@ -88,7 +57,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: const Text(
-          '设置',
+          'Cài đặt',
           style: TextStyle(
             color: Colors.black,
             fontWeight: FontWeight.bold,
@@ -104,8 +73,6 @@ class _SettingsScreenState extends State<SettingsScreen>
               controller: _tabController,
               children: [
                 _buildGeneralTab(),
-                _buildDifyConfigTab(),
-                _buildMiniMaxConfigTab(),
                 _buildXiaozhiConfigTab(),
               ],
             ),
@@ -160,13 +127,16 @@ class _SettingsScreenState extends State<SettingsScreen>
           splashFactory: NoSplash.splashFactory,
           labelStyle: const TextStyle(
             fontWeight: FontWeight.w600,
-            fontSize: 16,
+            fontSize: 15,
           ),
           unselectedLabelStyle: const TextStyle(
             fontWeight: FontWeight.w500,
-            fontSize: 16,
+            fontSize: 15,
           ),
-          tabs: const [Tab(text: '通用'), Tab(text: 'Dify'), Tab(text: 'MiniMax'), Tab(text: '小智')],
+          tabs: const [
+            Tab(text: 'Chung'),
+            Tab(text: 'Xiaozhi AI'),
+          ],
         ),
       ),
     );
@@ -180,8 +150,8 @@ class _SettingsScreenState extends State<SettingsScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildCard(
-              title: '外观',
-              subtitle: '调整应用的外观设置',
+              title: 'Giao diện',
+              subtitle: 'Tùy chỉnh giao diện hiển thị',
               child: Column(
                 children: [
                   Consumer<ThemeProvider>(
@@ -196,7 +166,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                           children: [
                             Row(
                               children: [
-                                Container(
+                                SizedBox(
                                   width: 24,
                                   height: 24,
                                   child: const Icon(
@@ -207,7 +177,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                                 ),
                                 const SizedBox(width: 12),
                                 const Text(
-                                  '深色模式',
+                                  'Chế độ tối',
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w500,
@@ -231,1653 +201,74 @@ class _SettingsScreenState extends State<SettingsScreen>
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDifyConfigTab() {
-    return Consumer<ConfigProvider>(
-      builder: (context, configProvider, child) {
-        final difyConfigs = configProvider.difyConfigs;
-
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildCard(
-                title: 'Dify API配置',
-                subtitle: '配置并管理多个Dify API服务',
-                actionButton: ElevatedButton.icon(
-                  onPressed: _showAddDifyDialog,
-                  icon: const Icon(Icons.add, color: Colors.white, size: 18),
-                  label: const Text(
-                    '添加配置',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF222222),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    elevation: 0,
-                    minimumSize: const Size(100, 36),
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    if (difyConfigs.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Center(child: Text('暂无Dify配置，点击右上角添加')),
-                      )
-                    else
-                      ...difyConfigs.map(
-                        (config) => _buildDifyConfigItem(config),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildDifyConfigItem(DifyConfig config) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade100),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 4,
-            spreadRadius: 0,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.blue.withOpacity(0.3),
-                        blurRadius: 8,
-                        spreadRadius: 0,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: CircleAvatar(
-                    radius: 24,
-                    backgroundColor: Colors.blue.shade400,
-                    child: const Icon(
-                      Icons.chat_bubble_outline,
-                      color: Colors.white,
-                      size: 26,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        config.name,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      Text(
-                        config.apiUrl,
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 14,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  margin: const EdgeInsets.only(left: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 2,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
-                  ),
-                  child: IconButton(
-                    icon: Icon(
-                      Icons.edit_outlined,
-                      color: Colors.grey.shade600,
-                      size: 22,
-                    ),
-                    onPressed: () => _showEditDifyDialog(config),
-                    padding: const EdgeInsets.all(8),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 2,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
-                  ),
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.delete_outline,
-                      color: Colors.red,
-                      size: 22,
-                    ),
-                    onPressed: () => _showDeleteDifyDialog(config),
-                    padding: const EdgeInsets.all(8),
-                  ),
-                ),
-              ],
-            ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'API Key:',
-                        style: TextStyle(color: Colors.grey, fontSize: 14),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${config.apiKey.substring(0, math.min(8, config.apiKey.length))}****',
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showAddDifyDialog() {
-    _newDifyNameController.clear();
-    _newDifyApiKeyController.clear();
-    _newDifyApiUrlController.clear();
-
-    showDialog(
-      context: context,
-      builder:
-          (context) => Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            elevation: 8,
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 12,
-                    spreadRadius: 0,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+            _buildCard(
+              title: 'Giới thiệu',
+              subtitle: 'Thông tin ứng dụng',
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          '添加Dify配置',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Container(
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.asset(
+                        'assets/images/logo_king.png',
+                        width: 56,
+                        height: 56,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 56,
+                          height: 56,
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 2,
-                                offset: const Offset(0, 1),
-                              ),
-                            ],
+                            color: Colors.purple.shade100,
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                          child: IconButton(
-                            icon: const Icon(Icons.close, size: 22),
-                            onPressed: () => Navigator.pop(context),
-                            padding: const EdgeInsets.all(4),
-                            constraints: const BoxConstraints(),
+                          child: Icon(
+                            Icons.smart_toy_outlined,
+                            size: 32,
+                            color: Colors.purple.shade700,
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      '添加新的Dify API配置',
-                      style: TextStyle(color: Colors.grey, fontSize: 14),
-                    ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      '配置名称',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade300),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.03),
-                            blurRadius: 4,
-                            spreadRadius: 0,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: TextField(
-                        controller: _newDifyNameController,
-                        decoration: InputDecoration(
-                          hintText: '输入配置名称',
-                          hintStyle: TextStyle(color: Colors.grey.shade400),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
-                          border: InputBorder.none,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'API URL',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade300),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.03),
-                            blurRadius: 4,
-                            spreadRadius: 0,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: TextField(
-                        controller: _newDifyApiUrlController,
-                        decoration: InputDecoration(
-                          hintText: 'https://api.dify.ai/v1',
-                          hintStyle: TextStyle(color: Colors.grey.shade400),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
-                          border: InputBorder.none,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'API Key',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade300),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.03),
-                            blurRadius: 4,
-                            spreadRadius: 0,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: TextField(
-                        controller: _newDifyApiKeyController,
-                        obscureText: true,
-                        decoration: InputDecoration(
-                          hintText: '输入API Key',
-                          hintStyle: TextStyle(color: Colors.grey.shade400),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
-                          border: InputBorder.none,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton(
-                      onPressed: () async {
-                        final name = _newDifyNameController.text.trim();
-                        final apiUrl = _newDifyApiUrlController.text.trim();
-                        final apiKey = _newDifyApiKeyController.text.trim();
-
-                        if (name.isEmpty || apiUrl.isEmpty || apiKey.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('请填写所有字段')),
-                          );
-                          return;
-                        }
-
-                        await Provider.of<ConfigProvider>(
-                          context,
-                          listen: false,
-                        ).addDifyConfig(name, apiKey, apiUrl);
-
-                        Navigator.of(context).pop();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text('已添加Dify配置'),
-                            backgroundColor: Colors.green.shade600,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            margin: const EdgeInsets.all(10),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        foregroundColor: Colors.white,
-                        elevation: 4,
-                        shadowColor: Colors.black.withOpacity(0.3),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text(
-                        '添加',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.black,
-                        side: const BorderSide(color: Colors.grey),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text(
-                        '取消',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-    );
-  }
-
-  void _showEditDifyDialog(DifyConfig config) {
-    _newDifyNameController.text = config.name;
-    _newDifyApiKeyController.text = config.apiKey;
-    _newDifyApiUrlController.text = config.apiUrl;
-
-    showDialog(
-      context: context,
-      builder:
-          (context) => Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            elevation: 8,
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 12,
-                    spreadRadius: 0,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          '编辑Dify配置',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 2,
-                                offset: const Offset(0, 1),
-                              ),
-                            ],
-                          ),
-                          child: IconButton(
-                            icon: const Icon(Icons.close, size: 22),
-                            onPressed: () => Navigator.pop(context),
-                            padding: const EdgeInsets.all(4),
-                            constraints: const BoxConstraints(),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      '修改Dify API配置',
-                      style: TextStyle(color: Colors.grey, fontSize: 14),
-                    ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      '配置名称',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade300),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.03),
-                            blurRadius: 4,
-                            spreadRadius: 0,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: TextField(
-                        controller: _newDifyNameController,
-                        decoration: InputDecoration(
-                          hintText: '输入配置名称',
-                          hintStyle: TextStyle(color: Colors.grey.shade400),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
-                          border: InputBorder.none,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'API URL',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade300),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.03),
-                            blurRadius: 4,
-                            spreadRadius: 0,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: TextField(
-                        controller: _newDifyApiUrlController,
-                        decoration: InputDecoration(
-                          hintText: 'https://api.dify.ai/v1',
-                          hintStyle: TextStyle(color: Colors.grey.shade400),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
-                          border: InputBorder.none,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'API Key',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade300),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.03),
-                            blurRadius: 4,
-                            spreadRadius: 0,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: TextField(
-                        controller: _newDifyApiKeyController,
-                        obscureText: true,
-                        decoration: InputDecoration(
-                          hintText: '输入API Key',
-                          hintStyle: TextStyle(color: Colors.grey.shade400),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
-                          border: InputBorder.none,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton(
-                      onPressed: () async {
-                        final name = _newDifyNameController.text.trim();
-                        final apiUrl = _newDifyApiUrlController.text.trim();
-                        final apiKey = _newDifyApiKeyController.text.trim();
-
-                        if (name.isEmpty || apiUrl.isEmpty || apiKey.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text('请填写所有字段'),
-                              backgroundColor: Colors.red.shade600,
-                              behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              margin: const EdgeInsets.all(10),
-                            ),
-                          );
-                          return;
-                        }
-
-                        final updatedConfig = DifyConfig(
-                          id: config.id,
-                          name: name,
-                          apiUrl: apiUrl,
-                          apiKey: apiKey,
-                        );
-
-                        await Provider.of<ConfigProvider>(
-                          context,
-                          listen: false,
-                        ).updateDifyConfig(updatedConfig);
-
-                        Navigator.of(context).pop();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text('已更新Dify配置'),
-                            backgroundColor: Colors.green.shade600,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            margin: const EdgeInsets.all(10),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        foregroundColor: Colors.white,
-                        elevation: 4,
-                        shadowColor: Colors.black.withOpacity(0.3),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text(
-                        '保存',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.black,
-                        side: const BorderSide(color: Colors.grey),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text(
-                        '取消',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-    );
-  }
-
-  void _showDeleteDifyDialog(DifyConfig config) {
-    showDialog(
-      context: context,
-      builder:
-          (context) => Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 12,
-                    spreadRadius: 0,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          '删除Dify配置',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close, size: 22),
-                          onPressed: () => Navigator.pop(context),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.red.shade100),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.warning_amber_rounded,
-                            color: Colors.red.shade700,
-                            size: 24,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              '确定要删除"${config.name}"配置吗？这个操作不可撤销。',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.red.shade900,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        elevation: 4,
-                        shadowColor: Colors.red.withOpacity(0.3),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      onPressed: () async {
-                        await Provider.of<ConfigProvider>(
-                          context,
-                          listen: false,
-                        ).deleteDifyConfig(config.id);
-
-                        Navigator.of(context).pop();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text('已删除配置'),
-                            backgroundColor: Colors.green.shade600,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            margin: const EdgeInsets.all(10),
-                          ),
-                        );
-                      },
-                      child: const Text(
-                        '删除',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.black,
-                        side: const BorderSide(color: Colors.grey),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text(
-                        '取消',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-    );
-  }
-
-  Widget _buildMiniMaxConfigTab() {
-    return Consumer<ConfigProvider>(
-      builder: (context, configProvider, child) {
-        final minimaxConfigs = configProvider.minimaxConfigs;
-
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildCard(
-                title: 'MiniMax AI配置',
-                subtitle: '配置并管理MiniMax API服务',
-                actionButton: ElevatedButton.icon(
-                  onPressed: _showAddMiniMaxDialog,
-                  icon: const Icon(Icons.add, color: Colors.white, size: 18),
-                  label: const Text(
-                    '添加配置',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF222222),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    elevation: 0,
-                    minimumSize: const Size(100, 36),
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    if (minimaxConfigs.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Center(child: Text('暂无MiniMax配置，点击右上角添加')),
-                      )
-                    else
-                      ...minimaxConfigs.map(
-                        (config) => _buildMiniMaxConfigItem(config),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildMiniMaxConfigItem(MiniMaxConfig config) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade100),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 4,
-            spreadRadius: 0,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.teal.withOpacity(0.3),
-                        blurRadius: 8,
-                        spreadRadius: 0,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: CircleAvatar(
-                    radius: 24,
-                    backgroundColor: Colors.teal.shade400,
-                    child: const Icon(
-                      Icons.auto_awesome,
-                      color: Colors.white,
-                      size: 26,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        config.name,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      Text(
-                        config.model,
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 14,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  margin: const EdgeInsets.only(left: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 2,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
-                  ),
-                  child: IconButton(
-                    icon: Icon(
-                      Icons.edit_outlined,
-                      color: Colors.grey.shade600,
-                      size: 22,
-                    ),
-                    onPressed: () => _showEditMiniMaxDialog(config),
-                    padding: const EdgeInsets.all(8),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 2,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
-                  ),
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.delete_outline,
-                      color: Colors.red,
-                      size: 22,
-                    ),
-                    onPressed: () => _showDeleteMiniMaxDialog(config),
-                    padding: const EdgeInsets.all(8),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'API Key:',
-                        style: TextStyle(color: Colors.grey, fontSize: 14),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${config.apiKey.substring(0, math.min(8, config.apiKey.length))}****',
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showAddMiniMaxDialog() {
-    final nameController = TextEditingController();
-    final apiKeyController = TextEditingController();
-    String selectedModel = 'MiniMax-M2.7';
-
-    showDialog(
-      context: context,
-      builder:
-          (context) => StatefulBuilder(
-            builder: (context, setDialogState) => Dialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              elevation: 8,
-              child: Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 12,
-                      spreadRadius: 0,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            '添加MiniMax配置',
+                            'HDVbot',
                             style: TextStyle(
-                              fontSize: 22,
+                              fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(12),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Phiên bản 2.0.0 (Bản cá nhân)',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade600,
                             ),
-                            child: IconButton(
-                              icon: const Icon(Icons.close, size: 22),
-                              onPressed: () => Navigator.pop(context),
-                              padding: const EdgeInsets.all(4),
-                              constraints: const BoxConstraints(),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Dựa trên Xiaozhi Android Client',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade500,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        '添加新的MiniMax AI配置',
-                        style: TextStyle(color: Colors.grey, fontSize: 14),
-                      ),
-                      const SizedBox(height: 24),
-                      const Text(
-                        '配置名称',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
-                        child: TextField(
-                          controller: nameController,
-                          decoration: InputDecoration(
-                            hintText: '例如：MiniMax AI',
-                            hintStyle: TextStyle(color: Colors.grey.shade400),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 14,
-                            ),
-                            border: InputBorder.none,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'API Key',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
-                        child: TextField(
-                          controller: apiKeyController,
-                          obscureText: true,
-                          decoration: InputDecoration(
-                            hintText: '输入MiniMax API Key',
-                            hintStyle: TextStyle(color: Colors.grey.shade400),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 14,
-                            ),
-                            border: InputBorder.none,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        '模型',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: selectedModel,
-                            isExpanded: true,
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'MiniMax-M2.7',
-                                child: Text('MiniMax-M2.7'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'MiniMax-M2.5',
-                                child: Text('MiniMax-M2.5'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'MiniMax-M2.5-highspeed',
-                                child: Text('MiniMax-M2.5-highspeed'),
-                              ),
-                            ],
-                            onChanged: (value) {
-                              setDialogState(() {
-                                selectedModel = value ?? 'MiniMax-M2.7';
-                              });
-                            },
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      ElevatedButton(
-                        onPressed: () async {
-                          final name = nameController.text.trim();
-                          final apiKey = apiKeyController.text.trim();
-
-                          if (name.isEmpty || apiKey.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('请填写所有字段')),
-                            );
-                            return;
-                          }
-
-                          await Provider.of<ConfigProvider>(
-                            context,
-                            listen: false,
-                          ).addMiniMaxConfig(name, apiKey, model: selectedModel);
-
-                          Navigator.of(context).pop();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text('已添加MiniMax配置'),
-                              backgroundColor: Colors.green.shade600,
-                              behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              margin: const EdgeInsets.all(10),
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black,
-                          foregroundColor: Colors.white,
-                          elevation: 4,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          '添加',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.black,
-                          side: const BorderSide(color: Colors.grey),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          '取消',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
-          ),
-    );
-  }
-
-  void _showEditMiniMaxDialog(MiniMaxConfig config) {
-    final nameController = TextEditingController(text: config.name);
-    final apiKeyController = TextEditingController(text: config.apiKey);
-    String selectedModel = config.model;
-
-    showDialog(
-      context: context,
-      builder:
-          (context) => StatefulBuilder(
-            builder: (context, setDialogState) => Dialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              elevation: 8,
-              child: Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            '编辑MiniMax配置',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.close, size: 22),
-                            onPressed: () => Navigator.pop(context),
-                            padding: const EdgeInsets.all(4),
-                            constraints: const BoxConstraints(),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-                      const Text(
-                        '配置名称',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
-                        child: TextField(
-                          controller: nameController,
-                          decoration: const InputDecoration(
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 14,
-                            ),
-                            border: InputBorder.none,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'API Key',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
-                        child: TextField(
-                          controller: apiKeyController,
-                          obscureText: true,
-                          decoration: const InputDecoration(
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 14,
-                            ),
-                            border: InputBorder.none,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        '模型',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: selectedModel,
-                            isExpanded: true,
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'MiniMax-M2.7',
-                                child: Text('MiniMax-M2.7'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'MiniMax-M2.5',
-                                child: Text('MiniMax-M2.5'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'MiniMax-M2.5-highspeed',
-                                child: Text('MiniMax-M2.5-highspeed'),
-                              ),
-                            ],
-                            onChanged: (value) {
-                              setDialogState(() {
-                                selectedModel = value ?? config.model;
-                              });
-                            },
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      ElevatedButton(
-                        onPressed: () async {
-                          final name = nameController.text.trim();
-                          final apiKey = apiKeyController.text.trim();
-
-                          if (name.isEmpty || apiKey.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('请填写所有字段')),
-                            );
-                            return;
-                          }
-
-                          final updatedConfig = MiniMaxConfig(
-                            id: config.id,
-                            name: name,
-                            apiKey: apiKey,
-                            model: selectedModel,
-                          );
-
-                          await Provider.of<ConfigProvider>(
-                            context,
-                            listen: false,
-                          ).updateMiniMaxConfig(updatedConfig);
-
-                          Navigator.of(context).pop();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text('已更新MiniMax配置'),
-                              backgroundColor: Colors.green.shade600,
-                              behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              margin: const EdgeInsets.all(10),
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black,
-                          foregroundColor: Colors.white,
-                          elevation: 4,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          '保存',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.black,
-                          side: const BorderSide(color: Colors.grey),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          '取消',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-    );
-  }
-
-  void _showDeleteMiniMaxDialog(MiniMaxConfig config) {
-    showDialog(
-      context: context,
-      builder:
-          (context) => Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        '删除MiniMax配置',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(context),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.red.shade100),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.warning_amber_rounded,
-                          color: Colors.red.shade700,
-                          size: 24,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            '确定要删除"${config.name}"配置吗？',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.red.shade900,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    onPressed: () async {
-                      await Provider.of<ConfigProvider>(
-                        context,
-                        listen: false,
-                      ).deleteMiniMaxConfig(config.id);
-
-                      Navigator.of(context).pop();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text('已删除配置'),
-                          backgroundColor: Colors.green.shade600,
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          margin: const EdgeInsets.all(10),
-                        ),
-                      );
-                    },
-                    child: const Text(
-                      '删除',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.black,
-                      side: const BorderSide(color: Colors.grey),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text(
-                      '取消',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1892,13 +283,13 @@ class _SettingsScreenState extends State<SettingsScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildCard(
-                title: '小智服务配置',
-                subtitle: '管理小智语音服务配置',
+                title: 'Cấu hình dịch vụ Xiaozhi',
+                subtitle: 'Quản lý cấu hình kết nối giọng nói Xiaozhi',
                 actionButton: ElevatedButton.icon(
                   onPressed: _showAddXiaozhiConfigDialog,
                   icon: const Icon(Icons.add, color: Colors.white, size: 18),
                   label: const Text(
-                    '添加服务',
+                    'Thêm dịch vụ',
                     style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                   ),
                   style: ElevatedButton.styleFrom(
@@ -1919,8 +310,14 @@ class _SettingsScreenState extends State<SettingsScreen>
                   children: [
                     if (xiaozhiConfigs.isEmpty)
                       const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Center(child: Text('暂无小智服务，点击右上角添加')),
+                        padding: EdgeInsets.all(24),
+                        child: Center(
+                          child: Text(
+                            'Chưa có cấu hình Xiaozhi nào.\nNhấn nút "Thêm dịch vụ" ở trên để bắt đầu.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.grey, fontSize: 14),
+                          ),
+                        ),
                       )
                     else
                       ...xiaozhiConfigs.map(
@@ -2055,12 +452,12 @@ class _SettingsScreenState extends State<SettingsScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'MAC地址:',
+                        'Địa chỉ MAC:',
                         style: TextStyle(color: Colors.grey, fontSize: 14),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        config.macAddress.isEmpty ? '未设置' : config.macAddress,
+                        config.macAddress.isEmpty ? 'Tự động' : config.macAddress,
                         style: const TextStyle(fontSize: 14),
                       ),
                     ],
@@ -2076,7 +473,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        config.token.isEmpty ? '未设置' : config.token,
+                        config.token.isEmpty ? 'Mặc định' : config.token,
                         style: const TextStyle(fontSize: 14),
                       ),
                     ],
@@ -2151,8 +548,10 @@ class _SettingsScreenState extends State<SettingsScreen>
   }
 
   void _showAddXiaozhiConfigDialog() {
-    final nameController = TextEditingController();
-    final websocketUrlController = TextEditingController();
+    final nameController = TextEditingController(text: 'HDVbot');
+    final websocketUrlController = TextEditingController(
+      text: 'https://api.tenclass.net/xiaozhi/ota/',
+    );
     final tokenController = TextEditingController();
     final macAddressController = TextEditingController();
 
@@ -2187,9 +586,9 @@ class _SettingsScreenState extends State<SettingsScreen>
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
-                          '添加小智服务',
+                          'Thêm dịch vụ Xiaozhi',
                           style: TextStyle(
-                            fontSize: 22,
+                            fontSize: 20,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -2197,16 +596,9 @@ class _SettingsScreenState extends State<SettingsScreen>
                           decoration: BoxDecoration(
                             color: Colors.grey.shade100,
                             borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 2,
-                                offset: const Offset(0, 1),
-                              ),
-                            ],
                           ),
                           child: IconButton(
-                            icon: const Icon(Icons.close, size: 22),
+                            icon: const Icon(Icons.close, size: 20),
                             onPressed: () => Navigator.pop(context),
                             padding: const EdgeInsets.all(4),
                             constraints: const BoxConstraints(),
@@ -2216,14 +608,14 @@ class _SettingsScreenState extends State<SettingsScreen>
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      '添加新的小智语音服务配置',
-                      style: TextStyle(color: Colors.grey, fontSize: 14),
+                      'Cấu hình kết nối dịch vụ giọng nói Xiaozhi',
+                      style: TextStyle(color: Colors.grey, fontSize: 13),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
                     const Text(
-                      '服务名称',
+                      'Tên dịch vụ',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 15,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -2233,23 +625,15 @@ class _SettingsScreenState extends State<SettingsScreen>
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: Colors.grey.shade300),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.03),
-                            blurRadius: 4,
-                            spreadRadius: 0,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
                       ),
                       child: TextField(
                         controller: nameController,
                         decoration: InputDecoration(
-                          hintText: '例如：家庭小智',
+                          hintText: 'Ví dụ: HDVbot',
                           hintStyle: TextStyle(color: Colors.grey.shade400),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
-                            vertical: 14,
+                            vertical: 12,
                           ),
                           border: InputBorder.none,
                         ),
@@ -2257,9 +641,9 @@ class _SettingsScreenState extends State<SettingsScreen>
                     ),
                     const SizedBox(height: 16),
                     const Text(
-                      'WebSocket地址',
+                      'Địa chỉ WebSocket / OTA URL',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 15,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -2269,40 +653,27 @@ class _SettingsScreenState extends State<SettingsScreen>
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: Colors.grey.shade300),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.03),
-                            blurRadius: 4,
-                            spreadRadius: 0,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
                       ),
                       child: TextField(
                         controller: websocketUrlController,
                         decoration: InputDecoration(
-                          hintText: '例如：wss://example.com',
+                          hintText: 'https://api.tenclass.net/xiaozhi/ota/',
                           hintStyle: TextStyle(color: Colors.grey.shade400),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
-                            vertical: 14,
+                            vertical: 12,
                           ),
                           border: InputBorder.none,
                         ),
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'MAC地址 (可选)',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
+                    const Text(
+                      'Địa chỉ MAC (Tùy chọn)',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Container(
@@ -2310,24 +681,15 @@ class _SettingsScreenState extends State<SettingsScreen>
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: Colors.grey.shade300),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.03),
-                            blurRadius: 4,
-                            spreadRadius: 0,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
                       ),
                       child: TextField(
-                        enabled: true,
                         controller: macAddressController,
                         decoration: InputDecoration(
-                          hintText: '留空将自动生成',
+                          hintText: 'Để trống sẽ tự động tạo từ thiết bị',
                           hintStyle: TextStyle(color: Colors.grey.shade400),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
-                            vertical: 14,
+                            vertical: 12,
                           ),
                           border: InputBorder.none,
                         ),
@@ -2335,35 +697,16 @@ class _SettingsScreenState extends State<SettingsScreen>
                     ),
                     const SizedBox(height: 4),
                     const Text(
-                      '留空将根据设备ID自动生成',
+                      'Để trống sẽ tự tạo địa chỉ MAC cố định theo máy',
                       style: TextStyle(color: Colors.grey, fontSize: 12),
                     ),
                     const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Token',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Text(
-                            '默认开启',
-                            style: TextStyle(color: Colors.grey, fontSize: 14),
-                          ),
-                        ),
-                      ],
+                    const Text(
+                      'Token (Tùy chọn)',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Container(
@@ -2371,21 +714,15 @@ class _SettingsScreenState extends State<SettingsScreen>
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: Colors.grey.shade300),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.03),
-                            blurRadius: 4,
-                            spreadRadius: 0,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
                       ),
                       child: TextField(
                         controller: tokenController,
-                        decoration: const InputDecoration(
-                          contentPadding: EdgeInsets.symmetric(
+                        decoration: InputDecoration(
+                          hintText: 'Mặc định: test-token',
+                          hintStyle: TextStyle(color: Colors.grey.shade400),
+                          contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
-                            vertical: 14,
+                            vertical: 12,
                           ),
                           border: InputBorder.none,
                         ),
@@ -2397,12 +734,11 @@ class _SettingsScreenState extends State<SettingsScreen>
                         final name = nameController.text.trim();
                         final websocketUrl = websocketUrlController.text.trim();
                         final macAddress = macAddressController.text.trim();
-                        final token = tokenController.text.trim();
 
                         if (name.isEmpty || websocketUrl.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: const Text('请填写所有必填字段'),
+                              content: const Text('Vui lòng điền đầy đủ Tên và Địa chỉ URL'),
                               backgroundColor: Colors.red.shade600,
                               behavior: SnackBarBehavior.floating,
                               shape: RoundedRectangleBorder(
@@ -2427,7 +763,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                         Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: const Text('小智服务已添加'),
+                            content: const Text('Đã thêm dịch vụ Xiaozhi thành công'),
                             backgroundColor: Colors.green.shade600,
                             behavior: SnackBarBehavior.floating,
                             shape: RoundedRectangleBorder(
@@ -2441,33 +777,32 @@ class _SettingsScreenState extends State<SettingsScreen>
                         backgroundColor: Colors.black,
                         foregroundColor: Colors.white,
                         elevation: 4,
-                        shadowColor: Colors.black.withOpacity(0.3),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       child: const Text(
-                        '添加',
+                        'Lưu cấu hình',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                     OutlinedButton(
                       onPressed: () => Navigator.pop(context),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.black,
                         side: const BorderSide(color: Colors.grey),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       child: const Text(
-                        '取消',
+                        'Hủy',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
@@ -2521,9 +856,9 @@ class _SettingsScreenState extends State<SettingsScreen>
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
-                          '编辑小智服务',
+                          'Sửa dịch vụ Xiaozhi',
                           style: TextStyle(
-                            fontSize: 22,
+                            fontSize: 20,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -2537,14 +872,14 @@ class _SettingsScreenState extends State<SettingsScreen>
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      '修改小智语音服务配置',
-                      style: TextStyle(color: Colors.grey, fontSize: 14),
+                      'Chỉnh sửa cấu hình kết nối Xiaozhi',
+                      style: TextStyle(color: Colors.grey, fontSize: 13),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
                     const Text(
-                      '服务名称',
+                      'Tên dịch vụ',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 15,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -2554,23 +889,15 @@ class _SettingsScreenState extends State<SettingsScreen>
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: Colors.grey.shade300),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.03),
-                            blurRadius: 4,
-                            spreadRadius: 0,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
                       ),
                       child: TextField(
                         controller: nameController,
                         decoration: InputDecoration(
-                          hintText: '例如：家庭小智',
+                          hintText: 'Ví dụ: HDVbot',
                           hintStyle: TextStyle(color: Colors.grey.shade400),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
-                            vertical: 14,
+                            vertical: 12,
                           ),
                           border: InputBorder.none,
                         ),
@@ -2578,9 +905,9 @@ class _SettingsScreenState extends State<SettingsScreen>
                     ),
                     const SizedBox(height: 16),
                     const Text(
-                      'WebSocket地址',
+                      'Địa chỉ WebSocket / OTA URL',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 15,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -2590,23 +917,15 @@ class _SettingsScreenState extends State<SettingsScreen>
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: Colors.grey.shade300),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.03),
-                            blurRadius: 4,
-                            spreadRadius: 0,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
                       ),
                       child: TextField(
                         controller: websocketUrlController,
                         decoration: InputDecoration(
-                          hintText: '例如：wss://example.com',
+                          hintText: 'https://api.tenclass.net/xiaozhi/ota/',
                           hintStyle: TextStyle(color: Colors.grey.shade400),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
-                            vertical: 14,
+                            vertical: 12,
                           ),
                           border: InputBorder.none,
                         ),
@@ -2614,9 +933,9 @@ class _SettingsScreenState extends State<SettingsScreen>
                     ),
                     const SizedBox(height: 16),
                     const Text(
-                      'MAC地址',
+                      'Địa chỉ MAC',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 15,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -2631,47 +950,23 @@ class _SettingsScreenState extends State<SettingsScreen>
                         controller: macAddressController,
                         enabled: true,
                         decoration: InputDecoration(
-                          hintText: '留空将自动生成',
+                          hintText: 'Để trống sẽ tự tạo',
                           hintStyle: TextStyle(color: Colors.grey.shade400),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
-                            vertical: 14,
+                            vertical: 12,
                           ),
                           border: InputBorder.none,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      '留空将根据设备ID自动生成',
-                      style: TextStyle(color: Colors.grey, fontSize: 12),
-                    ),
                     const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Token',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Text(
-                            '默认开启',
-                            style: TextStyle(color: Colors.grey, fontSize: 14),
-                          ),
-                        ),
-                      ],
+                    const Text(
+                      'Token',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Container(
@@ -2679,21 +974,13 @@ class _SettingsScreenState extends State<SettingsScreen>
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: Colors.grey.shade300),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.03),
-                            blurRadius: 4,
-                            spreadRadius: 0,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
                       ),
                       child: TextField(
                         controller: tokenController,
                         decoration: const InputDecoration(
                           contentPadding: EdgeInsets.symmetric(
                             horizontal: 16,
-                            vertical: 14,
+                            vertical: 12,
                           ),
                           border: InputBorder.none,
                         ),
@@ -2710,7 +997,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                         if (name.isEmpty || websocketUrl.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: const Text('请填写所有必填字段'),
+                              content: const Text('Vui lòng điền đầy đủ Tên và Địa chỉ URL'),
                               backgroundColor: Colors.red.shade600,
                               behavior: SnackBarBehavior.floating,
                               shape: RoundedRectangleBorder(
@@ -2740,7 +1027,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                         Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: const Text('小智服务已更新'),
+                            content: const Text('Đã cập nhật dịch vụ Xiaozhi'),
                             backgroundColor: Colors.green.shade600,
                             behavior: SnackBarBehavior.floating,
                             shape: RoundedRectangleBorder(
@@ -2754,14 +1041,13 @@ class _SettingsScreenState extends State<SettingsScreen>
                         backgroundColor: Colors.black,
                         foregroundColor: Colors.white,
                         elevation: 4,
-                        shadowColor: Colors.black.withOpacity(0.3),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       child: const Text(
-                        '保存',
+                        'Lưu thay đổi',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -2774,13 +1060,13 @@ class _SettingsScreenState extends State<SettingsScreen>
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.black,
                         side: const BorderSide(color: Colors.grey),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       child: const Text(
-                        '取消',
+                        'Hủy',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
@@ -2826,9 +1112,9 @@ class _SettingsScreenState extends State<SettingsScreen>
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
-                          '删除小智服务',
+                          'Xóa dịch vụ Xiaozhi',
                           style: TextStyle(
-                            fontSize: 22,
+                            fontSize: 20,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -2842,7 +1128,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      '确定要删除 ${config.name} 吗？',
+                      'Bạn có chắc chắn muốn xóa "${config.name}"?',
                       style: const TextStyle(fontSize: 16),
                     ),
                     const SizedBox(height: 24),
@@ -2856,7 +1142,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                         Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: const Text('小智服务已删除'),
+                            content: const Text('Đã xóa dịch vụ thành công'),
                             backgroundColor: Colors.green.shade600,
                             behavior: SnackBarBehavior.floating,
                             shape: RoundedRectangleBorder(
@@ -2870,14 +1156,13 @@ class _SettingsScreenState extends State<SettingsScreen>
                         backgroundColor: Colors.red,
                         foregroundColor: Colors.white,
                         elevation: 4,
-                        shadowColor: Colors.black.withOpacity(0.3),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       child: const Text(
-                        '删除',
+                        'Xóa',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -2890,13 +1175,13 @@ class _SettingsScreenState extends State<SettingsScreen>
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.black,
                         side: const BorderSide(color: Colors.grey),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       child: const Text(
-                        '取消',
+                        'Hủy',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,

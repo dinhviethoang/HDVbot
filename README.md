@@ -1,3 +1,8 @@
+# HDVbot
+
+> Bản cá nhân HDVbot, phát triển dựa trên [TOM88812/xiaozhi-android-client](https://github.com/TOM88812/xiaozhi-android-client).  
+> Giấy phép mã nguồn mở: Apache License 2.0 (chi tiết xem tại file LICENSE).
+
 <div align="center">
   <a href="./README.md">中文</a> | 
   <a href="./README_EN.md">English</a> | 

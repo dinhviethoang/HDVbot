@@ -1,11 +1,10 @@
-enum ConversationType { dify, xiaozhi, minimax }
+enum ConversationType { xiaozhi }
 
 class Conversation {
   final String id;
   final String title;
   final ConversationType type;
-  final String
-  configId; // For both Xiaozhi and Dify conversations, references the config
+  final String configId; // For Xiaozhi conversations, references the config
   final DateTime lastMessageTime;
   final String lastMessage;
   final int unreadCount;
@@ -14,7 +13,7 @@ class Conversation {
   Conversation({
     required this.id,
     required this.title,
-    required this.type,
+    this.type = ConversationType.xiaozhi,
     this.configId = '',
     required this.lastMessageTime,
     required this.lastMessage,
@@ -26,7 +25,7 @@ class Conversation {
     return Conversation(
       id: json['id'],
       title: json['title'],
-      type: ConversationType.values.byName(json['type']),
+      type: ConversationType.xiaozhi,
       configId: json['configId'] ?? '',
       lastMessageTime: DateTime.parse(json['lastMessageTime']),
       lastMessage: json['lastMessage'],

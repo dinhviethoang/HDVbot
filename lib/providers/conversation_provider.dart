@@ -25,6 +25,8 @@ class ConversationProvider extends ChangeNotifier {
     _loadConversations();
   }
 
+  Future<void> loadConversations() => _loadConversations();
+
   Future<void> _loadConversations() async {
     final prefs = await SharedPreferences.getInstance();
 

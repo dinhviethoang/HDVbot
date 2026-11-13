@@ -98,24 +98,12 @@ class MessageBubble extends StatelessWidget {
       return const SizedBox(width: 32, height: 32);
     }
 
-    final isDify = conversationType == ConversationType.dify;
-    final isMinimax = conversationType == ConversationType.minimax;
-
     return CircleAvatar(
       radius: 16,
-      backgroundColor:
-          isMinimax
-              ? Colors.teal.shade400
-              : isDify
-                  ? Colors.blue.shade400
-                  : Colors.grey.shade700,
-      child: Icon(
-        isMinimax
-            ? Icons.auto_awesome
-            : isDify
-                ? Icons.chat_bubble_outline
-                : Icons.mic,
-        size: isMinimax ? 16 : isDify ? 16 : 18,
+      backgroundColor: Colors.purple.shade400,
+      child: const Icon(
+        Icons.mic,
+        size: 18,
         color: Colors.white,
       ),
     );
@@ -171,7 +159,7 @@ class MessageBubble extends StatelessWidget {
     if (message.imageLocalPath != null && message.imageLocalPath!.isNotEmpty) {
       final imageFile = File(message.imageLocalPath!);
       if (!imageFile.existsSync()) {
-        return _buildImagePlaceholder(isUser, "图片已被删除");
+        return _buildImagePlaceholder(isUser, "Hình ảnh đã bị xóa");
       }
 
       return Column(
@@ -186,7 +174,7 @@ class MessageBubble extends StatelessWidget {
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) {
                 print('图片加载失败: $error');
-                return _buildImagePlaceholder(isUser, "图片加载失败");
+                return _buildImagePlaceholder(isUser, "Tải hình ảnh thất bại");
               },
             ),
           ),

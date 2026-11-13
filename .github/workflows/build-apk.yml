@@ -1,0 +1,55 @@
+name: Build APK
+
+on:
+  push:
+    branches:
+      - rieng
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Android Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.2'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Fix PCM Player Plugin Namespace
+        run: |
+          PCM_GRADLE_FILE="$HOME/.pub-cache/hosted/pub.dev/flutter_pcm_player-0.0.1/android/build.gradle"
+          if [ -f "$PCM_GRADLE_FILE" ]; then
+            if ! grep -q "namespace" "$PCM_GRADLE_FILE"; then
+              sed -i '/android {/a \    namespace "com.lhht.flutter_pcm_player"' "$PCM_GRADLE_FILE"
+            fi
+          fi
+          GRADLE_PROPS="$HOME/.pub-cache/hosted/pub.dev/flutter_pcm_player-0.0.1/android/gradle.properties"
+          if [ -f "$GRADLE_PROPS" ]; then
+            echo 'android.namespace=com.lhht.flutter_pcm_player' >> "$GRADLE_PROPS"
+          fi
+
+      - name: Build APK Release Split per ABI
+        run: flutter build apk --release --split-per-abi
+
+      - name: Upload APK Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: hdvbot-apk-release
+          path: build/app/outputs/flutter-apk/*.apk
+          retention-days: 7
