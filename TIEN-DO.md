@@ -18,10 +18,13 @@ Nhánh làm việc: `rieng` (nhánh `main` giữ nguyên bản gốc).
   (2) R8 thiếu lớp Play Core → thêm `-dontwarn com.google.android.play.core.**` vào android/app/proguard-rules.pro. Claude tự sửa (vài dòng).
 - Xem Actions: repo riêng tư, Claude đọc qua Claude in Chrome (trình duyệt "DESKTOP-068OM6B" đã đăng nhập GitHub); không có gh.
 
+- 14/11: workflow tự đăng `HDVbot.apk` (bản armeabi-v7a) lên Releases mỗi lần build (tag build-N). Build #5 OK → link cố định bản mới nhất:
+  https://github.com/dinhviethoang/HDVbot/releases/latest/download/HDVbot.apk (repo riêng tư: điện thoại phải đăng nhập GitHub).
+
 ## Đang dở
 - APK CHƯA cài thử trên J2 Pro: chưa biết app có chạy, mắt robot/giao diện trông ra sao, nối được xiaozhi.me không.
 
 ## Việc tiếp theo
-1. Người dùng tải artifact ở https://github.com/dinhviethoang/HDVbot/actions/runs/43482093414, giải nén, cài `app-armeabi-v7a-release.apk` lên J2 Pro.
+1. Người dùng đăng nhập GitHub trên Chrome của J2 Pro, tải HDVbot.apk từ link Releases ở trên, cài.
 2. Mở app → nhập cấu hình (OTA đã điền sẵn) → lấy mã 6 số → kích hoạt trên xiaozhi.me.
 3. Người dùng góp ý mắt robot/giao diện/lỗi → giao codex/agy sửa (quota: codex về 17/11, agy Opus ~18/11) → push là tự build.
