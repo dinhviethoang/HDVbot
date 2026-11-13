@@ -13,10 +13,15 @@ Nhánh làm việc: `rieng` (nhánh `main` giữ nguyên bản gốc).
   Toàn bộ do agy làm bằng Gemini Flash High (codex + Opus hết quota tới 17–18/11). CHƯA biên dịch lần nào.
 - Remote: origin = https://github.com/dinhviethoang/HDVbot (riêng tư), upstream = bản gốc TOM88812. Đã push nhánh `rieng`.
 
+- 14/11: Build #4 trên GitHub Actions THÀNH CÔNG (commit 1d45b05, run 43482093414, 10m58s) → artifact `hdvbot-apk-release` 65.4 MB (giữ 7 ngày).
+  Đã sửa 2 lỗi build: (1) plugin flutter_pcm_player còn `package=` trong AndroidManifest → workflow xóa thuộc tính + đặt namespace;
+  (2) R8 thiếu lớp Play Core → thêm `-dontwarn com.google.android.play.core.**` vào android/app/proguard-rules.pro. Claude tự sửa (vài dòng).
+- Xem Actions: repo riêng tư, Claude đọc qua Claude in Chrome (trình duyệt "DESKTOP-068OM6B" đã đăng nhập GitHub); không có gh.
+
 ## Đang dở
-- Build #1 trên GitHub Actions đã kích hoạt khi push, chưa biết kết quả (Claude không đọc được Actions của repo riêng tư: không có gh, trình duyệt trong app chưa đăng nhập GitHub).
+- APK CHƯA cài thử trên J2 Pro: chưa biết app có chạy, mắt robot/giao diện trông ra sao, nối được xiaozhi.me không.
 
 ## Việc tiếp theo
-1. Xem kết quả build ở https://github.com/dinhviethoang/HDVbot/actions; nếu lỗi thì lấy log, sửa, push lại.
-2. Tải artifact hdvbot-apk-release, cài app-armeabi-v7a-release.apk lên J2 Pro, kích hoạt mã 6 số trên xiaozhi.me.
-3. Người dùng góp ý mắt robot/giao diện.
+1. Người dùng tải artifact ở https://github.com/dinhviethoang/HDVbot/actions/runs/43482093414, giải nén, cài `app-armeabi-v7a-release.apk` lên J2 Pro.
+2. Mở app → nhập cấu hình (OTA đã điền sẵn) → lấy mã 6 số → kích hoạt trên xiaozhi.me.
+3. Người dùng góp ý mắt robot/giao diện/lỗi → giao codex/agy sửa (quota: codex về 17/11, agy Opus ~18/11) → push là tự build.
