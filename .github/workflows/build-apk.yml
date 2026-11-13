@@ -33,16 +33,17 @@ jobs:
 
       - name: Fix PCM Player Plugin Namespace
         run: |
-          PCM_GRADLE_FILE="$HOME/.pub-cache/hosted/pub.dev/flutter_pcm_player-0.0.1/android/build.gradle"
-          if [ -f "$PCM_GRADLE_FILE" ]; then
-            if ! grep -q "namespace" "$PCM_GRADLE_FILE"; then
-              sed -i '/android {/a \    namespace "com.lhht.flutter_pcm_player"' "$PCM_GRADLE_FILE"
-            fi
+          PCM_DIR="$HOME/.pub-cache/hosted/pub.dev/flutter_pcm_player-0.0.1/android"
+          GRADLE_FILE="$PCM_DIR/build.gradle"
+          MANIFEST_FILE="$PCM_DIR/src/main/AndroidManifest.xml"
+          if grep -q "namespace" "$GRADLE_FILE"; then
+            sed -i -E 's/namespace[ =]+["'][^"']+["']/namespace "com.lhht.flutter_pcm_player"/' "$GRADLE_FILE"
+          else
+            sed -i '/android {/a \    namespace "com.lhht.flutter_pcm_player"' "$GRADLE_FILE"
           fi
-          GRADLE_PROPS="$HOME/.pub-cache/hosted/pub.dev/flutter_pcm_player-0.0.1/android/gradle.properties"
-          if [ -f "$GRADLE_PROPS" ]; then
-            echo 'android.namespace=com.lhht.flutter_pcm_player' >> "$GRADLE_PROPS"
-          fi
+          sed -i -E 's/[[:space:]]+package="[^"]*"//' "$MANIFEST_FILE"
+          echo "--- build.gradle"; cat "$GRADLE_FILE"
+          echo "--- AndroidManifest.xml"; cat "$MANIFEST_FILE"
 
       - name: Build APK Release Split per ABI
         run: flutter build apk --release --split-per-abi
