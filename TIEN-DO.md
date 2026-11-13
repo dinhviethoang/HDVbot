@@ -21,10 +21,17 @@ Nhánh làm việc: `rieng` (nhánh `main` giữ nguyên bản gốc).
 - 14/11: workflow tự đăng `HDVbot.apk` (bản armeabi-v7a) lên Releases mỗi lần build (tag build-N). Build #5 OK → link cố định bản mới nhất:
   https://github.com/dinhviethoang/HDVbot/releases/latest/download/HDVbot.apk (repo riêng tư: điện thoại phải đăng nhập GitHub).
 
+- 14/11: người dùng báo không hiện mã 6 số → nguyên nhân: app gốc nối thẳng WebSocket với test-token, không qua OTA.
+  agy viết lib/services/xiaozhi_ota_service.dart (checkVersion + /activate như firmware xiaozhi-esp32, giả lập ESP32-S3), MAC 02:xx… + Client-Id UUID
+  cố định (SharedPreferences hdvbot_mac / hdvbot_client_id), lớp phủ hiện mã 6 số, lần đầu mở tự tạo cấu hình mặc định.
+- 14/11: giao diện mới: lib/widgets/robot_face.dart (2 mắt + miệng, 12 cảm xúc, 6 trạng thái) toàn màn hình nền đen, xoay ngang
+  (sensorLandscape), chạm để hiện nút; cảm xúc từ server qua XiaozhiService.emotionNotifier (tin 'emotion' và 'llm').
+- Build #9 OK (commit dd43f90) = bản mới nhất trên Releases. (Build #7 lỗi thiếu import, Claude sửa 1 dòng.)
+
 ## Đang dở
-- APK CHƯA cài thử trên J2 Pro: chưa biết app có chạy, mắt robot/giao diện trông ra sao, nối được xiaozhi.me không.
+- Chưa thử trên máy: luồng kích hoạt OTA (server có nhận thiết bị giả lập không), khuôn mặt, cảm xúc.
 
 ## Việc tiếp theo
-1. Người dùng đăng nhập GitHub trên Chrome của J2 Pro, tải HDVbot.apk từ link Releases ở trên, cài.
-2. Mở app → nhập cấu hình (OTA đã điền sẵn) → lấy mã 6 số → kích hoạt trên xiaozhi.me.
-3. Người dùng góp ý mắt robot/giao diện/lỗi → giao codex/agy sửa (quota: codex về 17/11, agy Opus ~18/11) → push là tự build.
+1. Người dùng tải lại HDVbot.apk (link Releases latest), mở app → phải hiện mã 6 số → nhập trên xiaozhi.me.
+2. Nếu lỗi: lớp phủ lỗi hiện HTTP code + nội dung → người dùng chụp gửi.
+3. Góp ý khuôn mặt/cảm xúc → sửa (codex có lại 17/11, agy Opus ~18/11).
