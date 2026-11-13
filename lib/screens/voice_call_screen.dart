@@ -12,6 +12,7 @@ import 'package:ai_assistant/services/xiaozhi_service.dart';
 import 'package:ai_assistant/services/xiaozhi_ota_service.dart';
 import 'package:ai_assistant/utils/app_theme.dart';
 import 'package:ai_assistant/utils/device_util.dart';
+import 'package:ai_assistant/utils/emotion_detector.dart';
 import 'package:ai_assistant/widgets/robot_face.dart';
 
 /// Màn hình gọi thoại toàn màn hình phong cách mặt robot HDVbot
@@ -55,9 +56,10 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   Duration _callDuration = Duration.zero;
   bool _serverReady = false;
 
-  // Cảm xúc robot từ server và đếm giờ về vui vẻ
-  FaceEmotion _currentEmotion = FaceEmotion.happy;
+  // Cảm xúc robot (mặc định neutral khi rảnh rỗi) và đếm giờ về neutral
+  FaceEmotion _currentEmotion = FaceEmotion.neutral;
   Timer? _idleEmotionTimer;
+  String? _lastDetectedSentence;
 
   // Thanh điều khiển nhỏ mờ ở mép dưới
   bool _showControls = false;
@@ -170,7 +172,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       _xiaozhiService!.addListener(_handleServiceEvent);
       _xiaozhiService!.emotionNotifier.addListener(_handleEmotionChange);
 
-      // Lấy cảm xúc ban đầu nếu đã có (mặc định vui vẻ)
+      // Lấy cảm xúc ban đầu nếu đã có (mặc định neutral)
       _currentEmotion = _resolveEmotion(
         _xiaozhiService!.emotionNotifier.value,
       );
@@ -186,13 +188,9 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     }
   }
 
-  /// Ánh xạ cảm xúc: server gửi "neutral" hoặc không rõ thì mặc định thành happy; các cảm xúc khác giữ nguyên
+  /// Ánh xạ cảm xúc: server gửi "neutral" thì hiển thị neutral, không ép mặt cười mặc định
   FaceEmotion _resolveEmotion(String? raw) {
-    final parsed = RobotFace.faceEmotionFromServer(raw);
-    if (parsed == FaceEmotion.neutral) {
-      return FaceEmotion.happy;
-    }
-    return parsed;
+    return RobotFace.faceEmotionFromServer(raw);
   }
 
   void _handleEmotionChange() {
@@ -210,9 +208,26 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     _idleEmotionTimer = Timer(const Duration(seconds: 6), () {
       if (mounted) {
         setState(() {
-          _currentEmotion = FaceEmotion.happy;
+          _currentEmotion = FaceEmotion.neutral;
         });
       }
+    });
+  }
+
+  /// Xử lý nhận diện cảm xúc theo từng câu nói của robot
+  void _onRobotSentence(String sentence) {
+    final trimmed = sentence.trim();
+    if (trimmed.isEmpty || trimmed == _lastDetectedSentence) return;
+    _lastDetectedSentence = trimmed;
+
+    final detected = detectEmotionFromText(trimmed);
+    final targetEmotion = detected ??
+        RobotFace.faceEmotionFromServer(_xiaozhiService?.emotionNotifier.value);
+    print('[CamXuc] $trimmed -> ${detected?.name ?? targetEmotion.name}');
+
+    _idleEmotionTimer?.cancel();
+    setState(() {
+      _currentEmotion = targetEmotion;
     });
   }
 
@@ -249,6 +264,9 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         final String text = message['text'] ?? '';
         if (state == 'sentence_start') {
           _idleEmotionTimer?.cancel();
+          if (text.isNotEmpty) {
+            _onRobotSentence(text);
+          }
           setState(() {
             _isRobotSpeaking = true;
             _isThinking = false;
@@ -270,6 +288,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
           _startIdleEmotionTimer();
         }
       } else if (type == 'stt') {
+        _lastDetectedSentence = null;
         final String text = message['text'] ?? '';
         if (text.isNotEmpty) {
           _idleEmotionTimer?.cancel();
@@ -280,6 +299,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
           });
         }
       } else if (type == 'llm') {
+        _lastDetectedSentence = null;
         _idleEmotionTimer?.cancel();
         setState(() {
           _isThinking = true;
@@ -293,6 +313,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     if (!mounted) return;
     switch (event.type) {
       case XiaozhiServiceEventType.userMessage:
+        _lastDetectedSentence = null;
         _idleEmotionTimer?.cancel();
         setState(() {
           if (event.data is String && (event.data as String).isNotEmpty) {
@@ -305,9 +326,16 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
 
       case XiaozhiServiceEventType.textMessage:
         _idleEmotionTimer?.cancel();
+        final rawText = (event.data is String) ? (event.data as String) : '';
+        if (rawText.startsWith('表情:')) {
+          break;
+        }
+        if (rawText.isNotEmpty) {
+          _onRobotSentence(rawText);
+        }
         setState(() {
-          if (event.data is String && (event.data as String).isNotEmpty) {
-            _latestSubtitle = 'HDVbot: ${event.data}';
+          if (rawText.isNotEmpty) {
+            _latestSubtitle = 'HDVbot: $rawText';
           }
           _isRobotSpeaking = true;
           _isThinking = false;
@@ -496,6 +524,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
 
   // Gửi lệnh ngắt lời robot
   void _sendAbortMessage() {
+    _lastDetectedSentence = null;
     _xiaozhiService?.sendAbortMessage();
     setState(() {
       _isRobotSpeaking = false;
@@ -578,6 +607,9 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     final faceState = _resolveFaceState();
     final double currentVolume =
         _audioLevels.isNotEmpty ? _audioLevels.last : 0.0;
+    // Khi robot dang noi (FaceState.speaking), truyen volume 0 de RobotFace tu mo/dong mieng lien tuc theo nhip noi tu nhien
+    final double faceVolume =
+        (faceState == FaceState.speaking) ? 0.0 : currentVolume;
 
     return Scaffold(
       backgroundColor: const Color(0xFF000000),
@@ -594,7 +626,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                 child: RobotFace(
                   state: faceState,
                   emotion: _currentEmotion,
-                  volume: currentVolume,
+                  volume: faceVolume,
                   color: const Color(0xFF00F0FF),
                 ),
               ),

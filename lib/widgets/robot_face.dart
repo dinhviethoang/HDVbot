@@ -215,6 +215,15 @@ class _RobotFaceState extends State<RobotFace>
         ? const Color(0xFFFF1744)
         : baseColor;
 
+    // Tăng độ tương phản nhận diện cảm xúc từ xa 2 mét
+    if (state != FaceState.error) {
+      if (emotion == FaceEmotion.angry) {
+        activeColor = const Color(0xFFFF6B35); // Cam đỏ nhẹ đặc trưng giận dữ thay vì cyan
+      } else if (emotion == FaceEmotion.sad) {
+        activeColor = const Color(0xFF64B5F6); // Xanh nhạt đượm buồn
+      }
+    }
+
     double eyeScaleX = 1.0;
     double eyeScaleY = 1.0;
     double eyeSlantLeft = 0.0;
@@ -240,10 +249,10 @@ class _RobotFaceState extends State<RobotFace>
 
     switch (emotion) {
       case FaceEmotion.happy:
-        eyeArch = 1.0;
-        mouthCurve = 0.82;
-        mouthOpen = 0.25;
-        mouthWidth = 1.05;
+        eyeArch = 1.0; // Mắt ^ ^
+        mouthCurve = 0.90;
+        mouthOpen = 0.32;
+        mouthWidth = 1.18; // Miệng cười rộng
         break;
       case FaceEmotion.laughing:
         eyeArch = 1.0;
@@ -254,28 +263,30 @@ class _RobotFaceState extends State<RobotFace>
         mouthWidth = 1.25;
         break;
       case FaceEmotion.sad:
-        eyeSlantLeft = -0.20;
-        eyeSlantRight = -0.20;
-        eyeScaleY = 0.85;
-        irisOffsetY = 0.26;
-        mouthCurve = -0.78;
-        mouthWidth = 0.88;
+        eyeSlantLeft = -0.28;
+        eyeSlantRight = -0.28;
+        eyeScaleY = 0.72;
+        eyeOpenRatio = 0.80; // Mí sụp xuống
+        irisOffsetY = 0.35; // Mắt nhìn xuống
+        mouthCurve = -0.85; // Miệng cong vòng xuống rõ rệt
+        mouthWidth = 0.85;
         break;
       case FaceEmotion.angry:
-        eyeSlantLeft = 0.25;
-        eyeSlantRight = 0.25;
-        eyeScaleY = 0.80;
-        irisScale = 0.85;
-        mouthCurve = -0.38;
-        mouthWidth = 0.90;
+        eyeSlantLeft = 0.38; // Lông mày/mắt xiên mạnh
+        eyeSlantRight = 0.38;
+        eyeScaleY = 0.78;
+        irisScale = 0.82;
+        mouthCurve = -0.52;
+        mouthSkew = -0.28; // Miệng méo bất mãn
+        mouthWidth = 0.95;
         break;
       case FaceEmotion.surprised:
-        eyeScaleX = 1.22;
-        eyeScaleY = 1.25;
-        irisScale = 1.22;
-        mouthRoundness = 1.0;
-        mouthOpen = 0.72;
-        mouthWidth = 0.65;
+        eyeScaleX = 1.28;
+        eyeScaleY = 1.32;
+        irisScale = 1.25;
+        mouthRoundness = 1.0; // Miệng chữ O tròn xoe
+        mouthOpen = 0.82;
+        mouthWidth = 0.70;
         break;
       case FaceEmotion.loving:
         eyeHeart = 1.0;
