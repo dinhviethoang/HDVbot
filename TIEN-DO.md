@@ -28,10 +28,16 @@ Nhánh làm việc: `rieng` (nhánh `main` giữ nguyên bản gốc).
   (sensorLandscape), chạm để hiện nút; cảm xúc từ server qua XiaozhiService.emotionNotifier (tin 'emotion' và 'llm').
 - Build #9 OK (commit dd43f90) = bản mới nhất trên Releases. (Build #7 lỗi thiếu import, Claude sửa 1 dòng.)
 
+- 14/11: build 10: ký APK bằng khóa cố định android/app/hdvbot-release.p12 (mật khẩu trong build.gradle.kts, repo PHẢI riêng tư),
+  versionCode = số lần build → từ build 10 cài đè được (trước đó phải gỡ bản cũ: chữ ký khác làm Samsung treo "Đang cài đặt").
+- 14/11: người dùng cài được trên 1 máy, kích hoạt OK, nói chuyện được nhưng tiếng Trung → hướng dẫn đổi ngôn ngữ/giọng/vai trò trên xiaozhi.me.
+- 14/11: build 11 OK (commit 25f2912): app luôn nền tối (bỏ công tắc), màn hình luôn sáng khi mở app (MainActivity.kt),
+  biểu cảm theo từng câu nói: lib/utils/emotion_detector.dart (từ khóa tiếng Việt có/không dấu + emoji) + cảm xúc server; mặc định neutral.
+
 ## Đang dở
-- Chưa thử trên máy: luồng kích hoạt OTA (server có nhận thiết bị giả lập không), khuôn mặt, cảm xúc.
+- Chưa thử build 11 trên máy: nền tối các màn hình, biểu cảm theo câu, miệng khi nói.
+- Có 1 bản thừa của khóa ký ở branding/hdvbot-release.p12 (copy nhầm) — có thể xóa.
 
 ## Việc tiếp theo
-1. Người dùng tải lại HDVbot.apk (link Releases latest), mở app → phải hiện mã 6 số → nhập trên xiaozhi.me.
-2. Nếu lỗi: lớp phủ lỗi hiện HTTP code + nội dung → người dùng chụp gửi.
-3. Góp ý khuôn mặt/cảm xúc → sửa (codex có lại 17/11, agy Opus ~18/11).
+1. Người dùng gỡ bản cũ một lần, cài build 11 (link Releases latest), đổi tiếng Việt trên xiaozhi.me, góp ý khuôn mặt.
+2. Sửa theo góp ý (codex có lại 17/11, agy Opus ~18/11). Push nhánh rieng là tự build + đăng Releases.
