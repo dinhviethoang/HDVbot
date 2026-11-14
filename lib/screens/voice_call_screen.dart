@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ai_assistant/models/conversation.dart';
 import 'package:ai_assistant/models/message.dart';
 import 'package:ai_assistant/models/xiaozhi_config.dart';
@@ -13,7 +14,21 @@ import 'package:ai_assistant/services/xiaozhi_ota_service.dart';
 import 'package:ai_assistant/utils/app_theme.dart';
 import 'package:ai_assistant/utils/device_util.dart';
 import 'package:ai_assistant/utils/emotion_detector.dart';
+import 'package:ai_assistant/utils/audio_util.dart';
+import 'package:ai_assistant/utils/app_log.dart';
+import 'package:ai_assistant/screens/log_screen.dart';
 import 'package:ai_assistant/widgets/robot_face.dart';
+
+/// Máy trạng thái vòng đời phiên gọi thoại
+enum SessionState {
+  activating,
+  connecting,
+  sleeping,
+  listening,
+  thinking,
+  speaking,
+  error,
+}
 
 /// Màn hình gọi thoại toàn màn hình phong cách mặt robot HDVbot
 /// Tối ưu đặc biệt cho Samsung J2 Pro (540x960, RAM 1.5GB)
@@ -69,6 +84,18 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   late AnimationController _animationController;
   final List<double> _audioLevels = List.filled(24, 0.05);
   Timer? _audioVisualizerTimer;
+
+  // Máy trạng thái phiên
+  SessionState _sessionState = SessionState.activating;
+  StreamSubscription<double>? _amplitudeSubscription;
+  Timer? _silenceTimer;
+  Timer? _longPress2sTimer;
+  bool _longPressTriggered = false;
+  bool _isWakingUp = false;
+
+  // Lưu lời thoại vào đoạn chat (tránh trùng lặp)
+  String? _lastSavedUserSentence;
+  String? _lastSavedAssistantSentence;
 
   @override
   void initState() {
@@ -154,6 +181,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         _showActivationOverlay = false;
         _isOtaConnecting = false;
         _otaError = null;
+        _sessionState = SessionState.connecting;
       });
 
       // Huỷ đăng ký listener cũ nếu có trước khi tạo service mới
@@ -185,6 +213,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       setState(() {
         _isOtaConnecting = false;
         _otaError = e.toString().replaceFirst('Exception: ', '');
+        _sessionState = SessionState.error;
       });
     }
   }
@@ -232,6 +261,245 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     });
   }
 
+  void _saveUserMessage(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty || trimmed == _lastSavedUserSentence) return;
+    _lastSavedUserSentence = trimmed;
+    _lastSavedAssistantSentence = null;
+    AppLog.add('[Chat] Luu user: $trimmed');
+    Provider.of<ConversationProvider>(context, listen: false).addMessage(
+      conversationId: widget.conversation.id,
+      role: MessageRole.user,
+      content: trimmed,
+    );
+  }
+
+  void _saveAssistantMessage(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty || trimmed == _lastSavedAssistantSentence) return;
+    _lastSavedAssistantSentence = trimmed;
+    _lastSavedUserSentence = null;
+    AppLog.add('[Chat] Luu assistant: $trimmed');
+    Provider.of<ConversationProvider>(context, listen: false).addMessage(
+      conversationId: widget.conversation.id,
+      role: MessageRole.assistant,
+      content: trimmed,
+    );
+  }
+
+  Future<void> _goToSleep({String reason = 'Server ket thuc phien'}) async {
+    if (!mounted || _sessionState == SessionState.sleeping) return;
+
+    AppLog.add('[Phien] Chuyen sang SLEEPING ($reason)');
+
+    _silenceTimer?.cancel();
+    _silenceTimer = null;
+    _disconnectDebounceTimer?.cancel();
+    _disconnectDebounceTimer = null;
+    _idleEmotionTimer?.cancel();
+    _idleEmotionTimer = null;
+
+    _isSpeaking = false;
+    _isRobotSpeaking = false;
+    _isThinking = false;
+    _serverReady = false;
+
+    // Disconnect chủ động để manager không tự reconnect
+    await _xiaozhiService?.disconnect();
+
+    if (mounted) {
+      setState(() {
+        _sessionState = SessionState.sleeping;
+        _currentEmotion = FaceEmotion.sleepy;
+        _statusText = 'Đang ngủ (Chạm hoặc nói để đánh thức)';
+      });
+    }
+
+    _startLocalWakeMonitoring();
+  }
+
+  Future<void> _startLocalWakeMonitoring() async {
+    await _stopLocalWakeMonitoring();
+    if (!mounted || _sessionState != SessionState.sleeping) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final bool enabled = prefs.getBool('voice_wake_enabled') ?? true;
+    if (!enabled) {
+      AppLog.add('[DanhThuc] Danh thuc bang giong noi dang TAT');
+      return;
+    }
+
+    final double threshold = prefs.getDouble('voice_wake_threshold') ?? 0.0316;
+    AppLog.add('[DanhThuc] Bat micro cuc bo theo doi do to (nguong: ${threshold.toStringAsFixed(4)})');
+
+    try {
+      if (!AudioUtil.isRecording) {
+        await AudioUtil.startRecording();
+      }
+    } catch (e) {
+      AppLog.add('[DanhThuc] Loi bat micro cuc bo: $e');
+      return;
+    }
+
+    DateTime? loudStartTime;
+
+    _amplitudeSubscription = AudioUtil.amplitudeStream.listen((amp) {
+      if (_sessionState != SessionState.sleeping) return;
+
+      if (amp >= threshold) {
+        loudStartTime ??= DateTime.now();
+        final ms = DateTime.now().difference(loudStartTime!).inMilliseconds;
+        if (ms >= 300) {
+          loudStartTime = null;
+          AppLog.add('[DanhThuc] Do to vuot nguong >= 300ms ($ms ms, amp=${amp.toStringAsFixed(3)})');
+          _wakeUp('Giọng nói (độ to ${(amp * 100).toStringAsFixed(1)}%)');
+        }
+      } else {
+        loudStartTime = null;
+      }
+    });
+  }
+
+  Future<void> _stopLocalWakeMonitoring() async {
+    await _amplitudeSubscription?.cancel();
+    _amplitudeSubscription = null;
+  }
+
+  Future<void> _wakeUp(String reason) async {
+    if (_isWakingUp) return;
+    _isWakingUp = true;
+
+    AppLog.add('[DanhThuc] Bat dau quy trinh danh thuc ($reason)');
+    await _stopLocalWakeMonitoring();
+
+    if (mounted) {
+      setState(() {
+        _sessionState = SessionState.connecting;
+        _currentEmotion = FaceEmotion.neutral;
+        _statusText = 'Đang đánh thức...';
+        _hasError = false;
+      });
+    }
+
+    try {
+      if (_xiaozhiService == null) {
+        throw Exception('Chưa khởi tạo dịch vụ');
+      }
+
+      await _xiaozhiService!.switchToVoiceCallMode();
+
+      // QUAN TRỌNG: Xóa session_id cũ để bắt buộc lấy session_id mới từ hello mới
+      _xiaozhiService!.clearSessionId();
+
+      // Kết nối WebSocket
+      await _xiaozhiService!.connect();
+
+      // Chờ 'hello' tối đa 8 giây
+      AppLog.add('[DanhThuc] Cho hello tu server (toi da 8s)...');
+      final sessionId = await _xiaozhiService!.waitForHello(
+        timeout: const Duration(seconds: 8),
+      );
+
+      if (sessionId == null) {
+        AppLog.add('[DanhThuc] Khong nhan duoc hello sau 8s');
+        if (mounted) {
+          _showCustomSnackbar(
+            message: 'Không nhận được phản hồi sau 8s',
+            icon: Icons.error_outline,
+            iconColor: AppTheme.errorColor,
+          );
+        }
+        _isWakingUp = false;
+        await _goToSleep(reason: 'Hết 8s chờ hello');
+        return;
+      }
+
+      AppLog.add('[DanhThuc] Nhan hello thanh cong, session_id: $sessionId');
+
+      if (!mounted) {
+        _isWakingUp = false;
+        return;
+      }
+
+      _isSpeaking = true;
+      _isRobotSpeaking = false;
+      _isThinking = false;
+      _serverReady = true;
+      _hasError = false;
+
+      // Gửi listen start (mode auto) và bắt đầu gửi audio
+      await _xiaozhiService!.startListeningCall();
+
+      setState(() {
+        _sessionState = SessionState.listening;
+        _currentEmotion = FaceEmotion.neutral;
+        _statusText = 'Đang lắng nghe...';
+      });
+
+      _resetSilenceTimer();
+    } catch (e) {
+      AppLog.add('[DanhThuc] Loi danh thuc: $e');
+      if (mounted) {
+        _showCustomSnackbar(
+          message: 'Lỗi đánh thức: $e',
+          icon: Icons.error_outline,
+          iconColor: AppTheme.errorColor,
+        );
+      }
+      _isWakingUp = false;
+      await _goToSleep(reason: 'Lỗi đánh thức: $e');
+      return;
+    }
+
+    _isWakingUp = false;
+  }
+
+  void _resetSilenceTimer() {
+    _silenceTimer?.cancel();
+    _silenceTimer = Timer(const Duration(seconds: 20), () {
+      if (mounted && _sessionState == SessionState.listening) {
+        AppLog.add('[Phien] 20 giay khong co ai noi -> Chuyen sang SLEEPING');
+        _goToSleep(reason: '20s không có âm thanh');
+      }
+    });
+  }
+
+  void _handlePointerDown() {
+    _longPressTriggered = false;
+    _longPress2sTimer?.cancel();
+    _longPress2sTimer = Timer(const Duration(seconds: 2), () {
+      _longPressTriggered = true;
+      HapticFeedback.heavyImpact();
+      AppLog.add('[GiaoDien] Nhan giu 2s -> Mo man hinh Nhat ky');
+      _openLogScreen();
+    });
+  }
+
+  void _handlePointerUpOrCancel() {
+    _longPress2sTimer?.cancel();
+    _longPress2sTimer = null;
+  }
+
+  void _handleFaceTap() {
+    if (_longPressTriggered) {
+      _longPressTriggered = false;
+      return;
+    }
+    if (_sessionState == SessionState.sleeping) {
+      AppLog.add('[DanhThuc] Cham vao khuon mat de danh thuc');
+      _wakeUp('Chạm màn hình');
+    } else {
+      _toggleControls();
+    }
+  }
+
+  void _openLogScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const LogScreen()),
+    );
+  }
+
   void _handleServerMessage(dynamic message) {
     if (!mounted) return;
     if (message is Map<String, dynamic>) {
@@ -242,6 +510,12 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       if (emotion is String && emotion.isNotEmpty) {
         _idleEmotionTimer?.cancel();
         _currentEmotion = _resolveEmotion(emotion);
+      }
+
+      if (type == 'goodbye') {
+        AppLog.add('[Phien] Nhan tin nhan goodbye tu server');
+        _goToSleep(reason: 'Server gửi goodbye');
+        return;
       }
 
       if (type == 'hello') {
@@ -255,7 +529,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         });
 
         // Tự động bắt đầu thu âm sau khi máy chủ sẵn sàng (đã có session_id)
-        if (!_isSpeaking) {
+        if (!_isSpeaking && _sessionState != SessionState.sleeping) {
           _startSpeaking();
         }
       } else if (type == 'tts') {
@@ -263,54 +537,66 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         final String text = message['text'] ?? '';
         if (state == 'sentence_start') {
           _idleEmotionTimer?.cancel();
+          _silenceTimer?.cancel();
           if (text.isNotEmpty) {
             _onRobotSentence(text);
+            _saveAssistantMessage(text);
           }
           setState(() {
             _isRobotSpeaking = true;
             _isThinking = false;
+            _sessionState = SessionState.speaking;
             _statusText = 'HDVbot đang nói...';
             if (text.isNotEmpty) {
               _latestSubtitle = 'HDVbot: $text';
             }
           });
         } else if (state == 'sentence_end' || state == 'stop') {
-          setState(() {
-            _isRobotSpeaking = false;
-            if (_isSpeaking) {
-              _statusText = 'Đang lắng nghe...';
-            } else {
-              _statusText = 'Sẵn sàng';
-            }
-          });
+          if (_sessionState != SessionState.sleeping) {
+            setState(() {
+              _isRobotSpeaking = false;
+              _sessionState = SessionState.listening;
+              if (_isSpeaking) {
+                _statusText = 'Đang lắng nghe...';
+              } else {
+                _statusText = 'Sẵn sàng';
+              }
+            });
+          }
           // Khi robot nói xong và về idle qua 6 giây thì trả về neutral
           _startIdleEmotionTimer();
 
-          // Khi tts 'stop': đảm bảo app đang ở trạng thái lắng nghe
-          if (state == 'stop') {
+          // Khi tts 'stop': đảm bảo app đang ở trạng thái lắng nghe và reset timer 20s
+          if (state == 'stop' && _sessionState != SessionState.sleeping) {
             if (_isSpeaking) {
               _xiaozhiService?.resumeListeningCall();
             } else {
               _startSpeaking();
             }
+            _resetSilenceTimer();
           }
         }
       } else if (type == 'stt') {
         _lastDetectedSentence = null;
         final String text = message['text'] ?? '';
         if (text.isNotEmpty) {
+          _saveUserMessage(text);
           _idleEmotionTimer?.cancel();
+          _silenceTimer?.cancel();
           setState(() {
             _latestSubtitle = 'Bạn: $text';
             _isThinking = true;
+            _sessionState = SessionState.thinking;
             _statusText = 'Đang suy nghĩ...';
           });
         }
       } else if (type == 'llm') {
         _lastDetectedSentence = null;
         _idleEmotionTimer?.cancel();
+        _silenceTimer?.cancel();
         setState(() {
           _isThinking = true;
+          _sessionState = SessionState.thinking;
           _statusText = 'Đang xử lý...';
         });
       }
@@ -364,23 +650,10 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         break;
 
       case XiaozhiServiceEventType.disconnected:
-        // Đặt lại các cờ để khi kết nối lại + 'hello' sẽ tự mở lại mic
-        _isSpeaking = false;
-        _isRobotSpeaking = false;
-        _isThinking = false;
-        _serverReady = false;
-        _xiaozhiService?.stopListeningCall();
-
-        // Chống nhấp nháy trạng thái: chỉ hiện "Mất kết nối máy chủ" nếu mất kết nối quá 2s liên tục
-        _disconnectDebounceTimer?.cancel();
-        _disconnectDebounceTimer = Timer(const Duration(seconds: 2), () {
-          if (mounted && !_serverReady) {
-            setState(() {
-              _isConnected = false;
-              _statusText = 'Mất kết nối máy chủ';
-            });
-          }
-        });
+        AppLog.add('[KetNoi] Event disconnected');
+        if (_sessionState != SessionState.sleeping && _sessionState != SessionState.activating) {
+          _goToSleep(reason: 'Mất kết nối server');
+        }
         break;
 
       default:
@@ -397,6 +670,10 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     _idleEmotionTimer?.cancel();
     _controlsTimer?.cancel();
     _disconnectDebounceTimer?.cancel();
+    _silenceTimer?.cancel();
+    _longPress2sTimer?.cancel();
+    _stopLocalWakeMonitoring();
+
     _xiaozhiService?.removeListener(_handleServiceEvent);
     _xiaozhiService?.emotionNotifier.removeListener(_handleEmotionChange);
     _xiaozhiService?.switchToChatMode();
@@ -410,57 +687,16 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   void _connectToVoiceService() async {
     if (_xiaozhiService == null) return;
 
-    setState(() {
-      _statusText = 'Đang chuẩn bị...';
-      _hasError = false;
-    });
+    _startCallTimer();
 
-    try {
-      await _xiaozhiService!.switchToVoiceCallMode();
-      await _xiaozhiService!.connectVoiceCall();
+    // Ghi nhận tin nhắn vào lịch sử trò chuyện
+    Provider.of<ConversationProvider>(context, listen: false).addMessage(
+      conversationId: widget.conversation.id,
+      role: MessageRole.assistant,
+      content: 'Cuộc gọi thoại đã bắt đầu',
+    );
 
-      if (_xiaozhiService!.isConnected && _xiaozhiService!.sessionId != null) {
-        _disconnectDebounceTimer?.cancel();
-        _disconnectDebounceTimer = null;
-        setState(() {
-          _serverReady = true;
-          _isConnected = true;
-          _hasError = false;
-          _statusText = 'Đã kết nối máy chủ';
-        });
-        if (!_isSpeaking) {
-          _startSpeaking();
-        }
-      } else {
-        setState(() {
-          _statusText = 'Đang kết nối...';
-          _hasError = false;
-        });
-      }
-
-      _startCallTimer();
-
-      // Ghi nhận tin nhắn vào lịch sử trò chuyện
-      Provider.of<ConversationProvider>(context, listen: false).addMessage(
-        conversationId: widget.conversation.id,
-        role: MessageRole.assistant,
-        content: 'Cuộc gọi thoại đã bắt đầu',
-      );
-    } catch (e) {
-      setState(() {
-        _statusText = 'Kết nối thất bại';
-        _isConnected = false;
-        _hasError = true;
-      });
-
-      if (mounted) {
-        _showCustomSnackbar(
-          message: 'Lỗi vào chế độ thoại: $e',
-          icon: Icons.error_outline,
-          iconColor: AppTheme.errorColor,
-        );
-      }
-    }
+    _wakeUp('Khởi động cuộc gọi thoại');
   }
 
   void _startCallTimer() {
@@ -503,9 +739,15 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
 
   // Bắt đầu thu âm micro
   void _startSpeaking() {
+    if (_sessionState == SessionState.sleeping) {
+      _wakeUp('Bật micro');
+      return;
+    }
+
     if (!_isSpeaking) {
       setState(() {
         _isSpeaking = true;
+        _sessionState = SessionState.listening;
         if (!_isRobotSpeaking && !_isThinking) {
           _statusText = 'Đang lắng nghe...';
         }
@@ -514,6 +756,9 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       try {
         _xiaozhiService
             ?.startListeningCall()
+            .then((_) {
+              _resetSilenceTimer();
+            })
             .catchError((e) {
               if (mounted) {
                 setState(() {
@@ -550,11 +795,13 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     setState(() {
       _isRobotSpeaking = false;
       _isThinking = false;
-      if (_isConnected) {
+      if (_sessionState != SessionState.sleeping) {
+        _sessionState = SessionState.listening;
         _statusText = 'Đang lắng nghe...';
       }
     });
     _startIdleEmotionTimer();
+    _resetSilenceTimer();
 
     if (mounted) {
       _showCustomSnackbar(
@@ -565,6 +812,43 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     }
   }
 
+  void _handleBigMicButton() async {
+    _resetControlsTimer();
+    AppLog.add('[NutMic] Nguoi dung bam nut MIC lon');
+
+    // Neu dang sleeping thi danh thuc
+    if (_sessionState == SessionState.sleeping) {
+      _wakeUp('Nút MIC lớn');
+      return;
+    }
+
+    // Neu robot dang noi, ngat loi va bat dau nghe ngay
+    if (_isRobotSpeaking) {
+      AppLog.add('[NutMic] Robot dang noi, ngat loi va bat dau nghe ngay');
+      _sendAbortMessage();
+      await Future.delayed(const Duration(milliseconds: 150));
+      _startSpeaking();
+      return;
+    }
+
+    // Neu dang thu am/lang nghe, bam lan nua de dung
+    if (_isSpeaking && _sessionState == SessionState.listening) {
+      AppLog.add('[NutMic] Dang nghe, bam de dung thu am');
+      _silenceTimer?.cancel();
+      await _xiaozhiService?.stopListeningCall();
+      if (mounted) {
+        setState(() {
+          _isSpeaking = false;
+          _statusText = 'Sẵn sàng';
+        });
+      }
+      return;
+    }
+
+    // Neu dang ranh, bat dau nghe ngay
+    _startSpeaking();
+  }
+
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
     final minutes = twoDigits(duration.inMinutes.remainder(60));
@@ -572,7 +856,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     return '$minutes:$seconds';
   }
 
-  /// Xác định trạng thái thật của khuôn mặt robot từ trạng thái cuộc gọi
+  /// Xác định trạng thái thật của khuôn mặt robot từ máy trạng thái
   FaceState _resolveFaceState() {
     if (_showActivationOverlay) {
       if (_otaError != null) {
@@ -580,25 +864,25 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       }
       return FaceState.connecting;
     }
-    if (_hasError) {
+    if (_hasError && _sessionState != SessionState.sleeping) {
       return FaceState.error;
     }
-    // Nếu đang trong thời gian debounce 2s ngắt kết nối thì không giật giao diện sang connecting
-    final bool isDebouncingDisconnect =
-        _disconnectDebounceTimer != null && _disconnectDebounceTimer!.isActive;
-    if ((!_isConnected || !_serverReady) && !isDebouncingDisconnect) {
-      return FaceState.connecting;
+    switch (_sessionState) {
+      case SessionState.activating:
+        return (_otaError != null) ? FaceState.error : FaceState.connecting;
+      case SessionState.connecting:
+        return FaceState.connecting;
+      case SessionState.sleeping:
+        return FaceState.idle;
+      case SessionState.listening:
+        return FaceState.listening;
+      case SessionState.thinking:
+        return FaceState.thinking;
+      case SessionState.speaking:
+        return FaceState.speaking;
+      case SessionState.error:
+        return FaceState.error;
     }
-    if (_isRobotSpeaking) {
-      return FaceState.speaking;
-    }
-    if (_isThinking) {
-      return FaceState.thinking;
-    }
-    if (_isSpeaking) {
-      return FaceState.listening;
-    }
-    return FaceState.idle;
   }
 
   void _toggleControls() {
@@ -631,15 +915,18 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     final faceState = _resolveFaceState();
     final double currentVolume =
         _audioLevels.isNotEmpty ? _audioLevels.last : 0.0;
-    // Khi robot dang noi (FaceState.speaking), truyen volume 0 de RobotFace tu mo/dong mieng lien tuc theo nhip noi tu nhien
+    // Khi robot dang noi hoac dang ngu, truyen volume 0 de RobotFace khong giat
     final double faceVolume =
-        (faceState == FaceState.speaking) ? 0.0 : currentVolume;
+        (faceState == FaceState.speaking || _sessionState == SessionState.sleeping) ? 0.0 : currentVolume;
 
     return Scaffold(
       backgroundColor: const Color(0xFF000000),
       body: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: _toggleControls,
+        onTapDown: (_) => _handlePointerDown(),
+        onTapUp: (_) => _handlePointerUpOrCancel(),
+        onTapCancel: () => _handlePointerUpOrCancel(),
+        onTap: _handleFaceTap,
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -676,13 +963,14 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   /// Thanh điều khiển nhỏ mờ ở mép dưới màn hình
   Widget _buildBottomControlBar() {
     final isMuted = _xiaozhiService?.isMuted ?? false;
+    final bool isListeningActive = _isSpeaking && _sessionState == SessionState.listening;
 
     return Center(
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: _resetControlsTimer,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
             color: const Color(0xCC000000), // Nền đen mờ 80%
             borderRadius: BorderRadius.circular(24),
@@ -714,11 +1002,11 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                   Navigator.pop(context);
                 },
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
 
               // Dòng trạng thái ngắn
               Container(
-                constraints: const BoxConstraints(maxWidth: 160),
+                constraints: const BoxConstraints(maxWidth: 120),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -750,41 +1038,53 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
 
-              // Nút tắt / mở mic
+              // Nút MIC LỚN: bấm để nghe ngay (ngắt lời nếu đang nói), bấm lần nữa để dừng
               _buildSmallCircleButton(
-                icon: isMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
-                color: isMuted ? AppTheme.errorColor : const Color(0xFF00F0FF),
-                backgroundColor: const Color(0x3300F0FF),
-                size: 38,
+                icon: isListeningActive ? Icons.mic_rounded : Icons.mic_none_rounded,
+                color: isListeningActive ? const Color(0xFF070B12) : const Color(0xFF00F0FF),
+                backgroundColor: isListeningActive
+                    ? const Color(0xFF00F0FF)
+                    : const Color(0x3300F0FF),
+                size: 46,
+                onPressed: _handleBigMicButton,
+              ),
+              const SizedBox(width: 8),
+
+              // Nút tắt / mở loa (mute)
+              _buildSmallCircleButton(
+                icon: isMuted ? Icons.mic_off_rounded : Icons.volume_up_rounded,
+                color: isMuted ? AppTheme.errorColor : Colors.white70,
+                backgroundColor: const Color(0x22FFFFFF),
+                size: 36,
                 onPressed: () {
                   _xiaozhiService?.toggleMute();
                   setState(() {});
                   _resetControlsTimer();
                 },
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
 
               // Nút ngắt lời robot
               _buildSmallCircleButton(
                 icon: Icons.pan_tool_rounded,
                 color: Colors.white,
                 backgroundColor: const Color(0xCCFF9100),
-                size: 38,
+                size: 36,
                 onPressed: () {
                   _sendAbortMessage();
                   _resetControlsTimer();
                 },
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
 
               // Nút kết thúc cuộc gọi
               _buildSmallCircleButton(
                 icon: Icons.call_end_rounded,
                 color: Colors.white,
                 backgroundColor: AppTheme.errorColor,
-                size: 42,
+                size: 38,
                 onPressed: () async {
                   _otaCancelToken?.cancel();
                   await _xiaozhiService?.sendAbortMessage();

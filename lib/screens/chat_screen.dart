@@ -14,6 +14,7 @@ import 'package:ai_assistant/utils/device_util.dart';
 import 'package:ai_assistant/widgets/message_bubble.dart';
 import 'package:ai_assistant/screens/voice_call_screen.dart';
 import 'package:ai_assistant/utils/app_theme.dart';
+import 'package:ai_assistant/utils/app_log.dart';
 
 class ChatScreen extends StatefulWidget {
   final Conversation conversation;
@@ -52,6 +53,8 @@ class _ChatScreenState extends State<ChatScreen> {
   Timer? _waveAnimationTimer;
   final List<double> _waveHeights = List.filled(20, 0.0);
   final Random _random = Random();
+  String? _lastSavedUserSentence;
+  String? _lastSavedAssistantSentence;
 
   @override
   void initState() {
@@ -261,8 +264,13 @@ class _ChatScreenState extends State<ChatScreen> {
       final content = message['text'] ?? message['content'];
 
       if (content != null && content.toString().trim().isNotEmpty) {
+        final text = content.toString().trim();
         if (type == 'stt') {
           if (_isVoiceInputMode) {
+            if (text == _lastSavedUserSentence) return;
+            _lastSavedUserSentence = text;
+            _lastSavedAssistantSentence = null;
+            AppLog.add('[Chat] STT nguoi dung: $text');
             Future.microtask(() {
               if (mounted) {
                 Provider.of<ConversationProvider>(
@@ -271,13 +279,22 @@ class _ChatScreenState extends State<ChatScreen> {
                 ).addMessage(
                   conversationId: widget.conversation.id,
                   role: MessageRole.user,
-                  content: content.toString(),
+                  content: text,
                 );
                 _scrollToBottom();
               }
             });
           }
         } else if (type == 'tts' || type == 'llm') {
+          final String? state = message['state'];
+          // Voi type tts, chi luu cau khi state la sentence_start
+          if (type == 'tts' && state != null && state != 'sentence_start') {
+            return;
+          }
+          if (text == _lastSavedAssistantSentence) return;
+          _lastSavedAssistantSentence = text;
+          _lastSavedUserSentence = null;
+          AppLog.add('[Chat] Robot tra loi: $text');
           Future.microtask(() {
             if (mounted) {
               Provider.of<ConversationProvider>(
@@ -286,7 +303,7 @@ class _ChatScreenState extends State<ChatScreen> {
               ).addMessage(
                 conversationId: widget.conversation.id,
                 role: MessageRole.assistant,
-                content: content.toString(),
+                content: text,
               );
               _scrollToBottom();
             }
@@ -979,8 +996,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
     try {
       HapticFeedback.mediumImpact();
-      await _xiaozhiService!.startListening();
+      AppLog.add('[Chat] Nhan giu mic -> Bat dau thu am manual');
+      await _xiaozhiService!.switchToChatMode();
+      await _xiaozhiService!.startListening(mode: 'manual');
     } catch (e) {
+      AppLog.add('[Chat] Loi ghi am: $e');
       _showCustomSnackbar('Không thể bắt đầu ghi âm: ${e.toString()}');
       setState(() {
         _isRecording = false;
@@ -997,9 +1017,11 @@ class _ChatScreenState extends State<ChatScreen> {
       });
 
       HapticFeedback.mediumImpact();
+      AppLog.add('[Chat] Tha tay mic -> Dung thu am (listen stop)');
       await _xiaozhiService?.stopListening();
       _scrollToBottom();
     } catch (e) {
+      AppLog.add('[Chat] Loi gui giong noi: $e');
       _showCustomSnackbar('Gửi giọng nói thất bại: ${e.toString()}');
       setState(() {
         _isVoiceInputMode = false;
@@ -1166,18 +1188,31 @@ class _ChatScreenState extends State<ChatScreen> {
           xiaozhiConfig: xiaozhiConfig,
         ),
       ),
-    ).then((_) {
-      // Khi quay về, dùng chung singleton XiaozhiService, không tạo kết nối mới nếu service đang kết nối đúng url/token
-      if (_xiaozhiService != null &&
-          _xiaozhiService!.isConnected &&
-          _xiaozhiService!.websocketUrl == _currentConfig.websocketUrl &&
-          _xiaozhiService!.token == _currentConfig.token) {
-        _xiaozhiService!.setMessageListener(_handleXiaozhiMessage);
-        _xiaozhiService!.addListener(_handleXiaozhiEvent);
-        if (mounted) setState(() {});
-      } else {
-        _initXiaozhiService();
+    ).then((_) async {
+      AppLog.add('[Chat] Quay ve tu VoiceCallScreen -> Khoi phuc che do chat');
+      if (_xiaozhiService == null) {
+        await _initXiaozhiService();
+        return;
       }
+
+      // Đảm bảo chuyển về chế độ chat
+      await _xiaozhiService!.switchToChatMode();
+
+      // Đăng ký lại listener chat
+      _xiaozhiService!.setMessageListener(_handleXiaozhiMessage);
+      _xiaozhiService!.addListener(_handleXiaozhiEvent);
+
+      // Đảm bảo đang kết nối và đã có session_id (chờ 'hello' nếu vừa kết nối lại)
+      if (!_xiaozhiService!.isConnected) {
+        AppLog.add('[Chat] Service chua ket noi, dang ket noi lai...');
+        await _xiaozhiService!.connect();
+        await _xiaozhiService!.waitForHello(timeout: const Duration(seconds: 8));
+      } else if (_xiaozhiService!.sessionId == null) {
+        AppLog.add('[Chat] Service da ket noi nhung chua co session_id, cho hello...');
+        await _xiaozhiService!.waitForHello(timeout: const Duration(seconds: 8));
+      }
+
+      if (mounted) setState(() {});
     });
   }
 

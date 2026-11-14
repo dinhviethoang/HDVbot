@@ -1,5 +1,7 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ai_assistant/providers/config_provider.dart';
 import 'package:ai_assistant/models/xiaozhi_config.dart';
 import 'package:ai_assistant/utils/app_theme.dart';
@@ -21,10 +23,13 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  bool _voiceWakeEnabled = true;
+  double _voiceWakeDbfs = -30.0;
 
   @override
   void initState() {
     super.initState();
+    _loadVoiceWakeSettings();
     _tabController = TabController(
       length: 2,
       vsync: this,
@@ -34,6 +39,16 @@ class _SettingsScreenState extends State<SettingsScreen>
     if (widget.autoShowAddDialog) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _showAddXiaozhiConfigDialog();
+      });
+    }
+  }
+
+  Future<void> _loadVoiceWakeSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _voiceWakeEnabled = prefs.getBool('voice_wake_enabled') ?? true;
+        _voiceWakeDbfs = prefs.getDouble('voice_wake_dbfs') ?? -30.0;
       });
     }
   }
@@ -213,6 +228,105 @@ class _SettingsScreenState extends State<SettingsScreen>
                         ],
                       ),
                     ),
+                  ],
+                ),
+              ),
+            ),
+            _buildCard(
+              title: 'Đánh thức bằng giọng nói',
+              subtitle: 'Tự động đánh thức robot khi phát hiện tiếng nói',
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Column(
+                  children: [
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text(
+                        'Bật đánh thức bằng giọng nói',
+                        style: TextStyle(
+                          color: AppTheme.textColor,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
+                      ),
+                      subtitle: const Text(
+                        'Robot mở micro cục bộ khi ngủ để tự thức dậy',
+                        style: TextStyle(
+                          color: AppTheme.secondaryTextColor,
+                          fontSize: 12,
+                        ),
+                      ),
+                      activeColor: AppTheme.primaryColor,
+                      value: _voiceWakeEnabled,
+                      onChanged: (val) async {
+                        setState(() => _voiceWakeEnabled = val);
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setBool('voice_wake_enabled', val);
+                      },
+                    ),
+                    if (_voiceWakeEnabled) ...[
+                      const Divider(color: AppTheme.borderColor),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Độ nhạy đánh thức bằng giọng nói',
+                                  style: TextStyle(
+                                    color: AppTheme.textColor,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.primaryColor.withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: AppTheme.primaryColor.withOpacity(0.4)),
+                                  ),
+                                  child: Text(
+                                    '${_voiceWakeDbfs.round()} dBFS',
+                                    style: const TextStyle(
+                                      color: AppTheme.primaryColor,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Slider(
+                              value: _voiceWakeDbfs,
+                              min: -45.0,
+                              max: -15.0,
+                              divisions: 30,
+                              activeColor: AppTheme.primaryColor,
+                              inactiveColor: AppTheme.borderColor,
+                              label: '${_voiceWakeDbfs.round()} dBFS',
+                              onChanged: (val) async {
+                                setState(() => _voiceWakeDbfs = val);
+                                final prefs = await SharedPreferences.getInstance();
+                                await prefs.setDouble('voice_wake_dbfs', val);
+                                final threshold = math.pow(10, val / 20).toDouble();
+                                await prefs.setDouble('voice_wake_threshold', threshold);
+                              },
+                            ),
+                            const Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('Nhạy hơn (-45 dBFS)', style: TextStyle(color: AppTheme.secondaryTextColor, fontSize: 11)),
+                                Text('Nói to (-15 dBFS)', style: TextStyle(color: AppTheme.secondaryTextColor, fontSize: 11)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

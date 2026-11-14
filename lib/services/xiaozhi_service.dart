@@ -9,6 +9,7 @@ import 'package:flutter_sound/flutter_sound.dart';
 import '../services/xiaozhi_websocket_manager.dart';
 import '../utils/device_util.dart';
 import '../utils/audio_util.dart';
+import '../utils/app_log.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 /// 小智服务事件类型
@@ -62,11 +63,54 @@ class XiaozhiService {
   bool _isVoiceCallActive = false;
   WebSocketChannel? _ws;
   bool _hasStartedCall = false;
-  MessageListener? _messageListener;
+  final List<MessageListener> _messageListeners = [];
   bool _pauseAudioSending = false;
 
   String? get sessionId => _sessionId;
   XiaozhiWebSocketManager? get webSocketManager => _webSocketManager;
+
+  /// Xóa session ID hiện tại
+  void clearSessionId() {
+    _sessionId = null;
+  }
+
+  /// Chờ nhận tin nhắn 'hello' từ server và lấy session_id mới (tối đa timeout)
+  Future<String?> waitForHello({Duration timeout = const Duration(seconds: 8)}) async {
+    if (isConnected && _sessionId != null) {
+      return _sessionId;
+    }
+
+    final completer = Completer<String?>();
+    void helloListener(dynamic message) {
+      if (message is Map<String, dynamic>) {
+        if (message['type'] == 'hello' || (message.containsKey('session_id') && _sessionId != null)) {
+          if (!completer.isCompleted) {
+            completer.complete(_sessionId);
+          }
+        }
+      }
+    }
+
+    addMessageListener(helloListener);
+
+    Timer? timer;
+    timer = Timer(timeout, () {
+      if (!completer.isCompleted) {
+        completer.complete(null);
+      }
+    });
+
+    try {
+      final result = await completer.future;
+      timer.cancel();
+      removeMessageListener(helloListener);
+      return result;
+    } catch (_) {
+      timer.cancel();
+      removeMessageListener(helloListener);
+      return null;
+    }
+  }
 
   /// 工厂构造函数，实现单例模式（若配置变动则重新初始化）
   factory XiaozhiService({
@@ -150,11 +194,9 @@ class XiaozhiService {
 
   /// 切换到普通聊天模式
   Future<void> switchToChatMode() async {
-    // 如果已经在普通聊天模式，直接返回
-    if (!_isVoiceCallActive) return;
-
     try {
       print('$TAG: 正在切换到普通聊天模式');
+      AppLog.add('[CheDo] Chuyen sang chat mode');
 
       // 停止语音通话相关的活动
       await stopListeningCall();
@@ -163,10 +205,12 @@ class XiaozhiService {
       await AudioUtil.stopPlaying();
 
       _isVoiceCallActive = false;
+      _pauseAudioSending = false;
       print('$TAG: 已切换到普通聊天模式');
     } catch (e) {
       print('$TAG: 切换到普通聊天模式失败: $e');
       _isVoiceCallActive = false;
+      _pauseAudioSending = false;
     }
   }
 
@@ -200,9 +244,22 @@ class XiaozhiService {
     await AudioUtil.initPlayer();
   }
 
-  /// 设置消息监听器
+  /// 设置消息监听器（清空旧的，只保留该监听器）
   void setMessageListener(MessageListener listener) {
-    _messageListener = listener;
+    _messageListeners.clear();
+    _messageListeners.add(listener);
+  }
+
+  /// Thêm消息监听器
+  void addMessageListener(MessageListener listener) {
+    if (!_messageListeners.contains(listener)) {
+      _messageListeners.add(listener);
+    }
+  }
+
+  /// Xóa消息监听器
+  void removeMessageListener(MessageListener listener) {
+    _messageListeners.remove(listener);
   }
 
   /// 添加事件监听器
@@ -278,18 +335,19 @@ class XiaozhiService {
       }
 
       final mgr = _webSocketManager;
-      _webSocketManager = null;
       if (mgr != null) {
-        mgr.removeListener(_onWebSocketEvent);
-        await mgr.dispose();
+        await mgr.disconnect();
       }
       _isConnected = false;
+      _sessionId = null;
       _isVoiceCallActive = false;
       _hasStartedCall = false;
       _pauseAudioSending = false;
       emotionNotifier.value = 'neutral';
+      AppLog.add('[DichVu] XiaozhiService da ngat ket noi');
     } catch (e) {
       print('$TAG: 断开连接失败: $e');
+      AppLog.add('[Loi] Disconnect: $e');
     }
   }
 
@@ -719,12 +777,17 @@ class XiaozhiService {
       // 更新会话ID trước để các listener luôn có session_id mới nhất
       if (jsonData['session_id'] != null) {
         _sessionId = jsonData['session_id'];
+        AppLog.add('[Phien] session_id = $_sessionId');
         print('$TAG: 更新会话ID: $_sessionId');
       }
 
-      // 确保首先调用消息监听器
-      if (_messageListener != null) {
-        _messageListener!(jsonData);
+      // Gọi tất cả message listeners
+      for (final listener in List<MessageListener>.from(_messageListeners)) {
+        try {
+          listener(jsonData);
+        } catch (e) {
+          print('$TAG: listener error: $e');
+        }
       }
 
       // Cập nhật cảm xúc nếu có trong tin nhắn (type 'emotion', 'llm' hoặc bất kỳ tin nhắn nào có trường 'emotion')
@@ -878,19 +941,36 @@ class XiaozhiService {
 
   /// 开始监听（按住说话模式）
   Future<void> startListening({String mode = 'manual'}) async {
-    if (!_isConnected || _webSocketManager == null) {
+    if (!isConnected || _webSocketManager == null) {
       await connect();
     }
 
     try {
-      // 确保已经有会话ID
+      // 确保已经有会话ID (đợi tối đa 5s, kiểm tra mỗi 100ms)
       if (_sessionId == null) {
-        print('$TAG: 没有会话ID，无法开始监听');
-        return;
+        AppLog.add('[Nghe] Chua co session_id, cho hello toi da 5s...');
+        print('$TAG: 没有会话ID，无法开始监听，等待会话ID (tối đa 5s)...');
+        int waitedMs = 0;
+        while (_sessionId == null && waitedMs < 5000) {
+          await Future.delayed(const Duration(milliseconds: 100));
+          waitedMs += 100;
+        }
+        if (_sessionId == null) {
+          AppLog.add('[Nghe] Loi: Khong co session_id sau 5s');
+          throw Exception('Chưa có session_id từ server sau 5s chờ đợi');
+        }
       }
 
       // 开始录音
-      await AudioUtil.startRecording();
+      if (!AudioUtil.isRecording) {
+        await AudioUtil.startRecording();
+      }
+
+      // 设置音频流订阅 (hủy stream cũ nếu có để tránh gửi đúp)
+      await _audioStreamSubscription?.cancel();
+      _audioStreamSubscription = AudioUtil.audioStream.listen((opusData) {
+        _webSocketManager?.sendBinaryMessage(opusData);
+      });
 
       // 发送开始监听命令
       final message = {
@@ -900,13 +980,8 @@ class XiaozhiService {
         'mode': mode,
       };
       _webSocketManager?.sendMessage(jsonEncode(message));
+      AppLog.add('[Lenh] Client gui: listen start ($mode)');
       print('$TAG: 已发送开始监听消息 (按住说话)');
-
-      // 设置音频流订阅
-      _audioStreamSubscription = AudioUtil.audioStream.listen((opusData) {
-        // 发送音频数据
-        _webSocketManager?.sendBinaryMessage(opusData);
-      });
     } catch (e) {
       print('$TAG: 开始监听失败: $e');
       throw Exception('Bắt đầu thu âm giọng nói thất bại: $e');
@@ -931,6 +1006,7 @@ class XiaozhiService {
           'state': 'stop',
         };
         _webSocketManager?.sendMessage(jsonEncode(message));
+        AppLog.add('[Lenh] Client gui: listen stop');
         print('$TAG: 已发送停止监听消息');
       }
     } catch (e) {

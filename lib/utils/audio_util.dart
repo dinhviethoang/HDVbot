@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:collection';
+import 'dart:math' as math;
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -10,6 +11,7 @@ import 'package:just_audio/just_audio.dart' as ja;
 import 'package:audio_session/audio_session.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter_pcm_player/flutter_pcm_player.dart';
+import 'app_log.dart';
 
 /// 音频工具类，用于处理Opus音频编解码和录制播放
 class AudioUtil {
@@ -24,8 +26,10 @@ class AudioUtil {
   static bool _isPlayerInitialized = false;
   static bool _isRecording = false;
   static bool _isPlaying = false;
-  static final StreamController<Uint8List> _audioStreamController =
+  static StreamController<Uint8List> _audioStreamController =
       StreamController<Uint8List>.broadcast();
+  static StreamController<double> _amplitudeStreamController =
+      StreamController<double>.broadcast();
   static String? _tempFilePath;
   static Timer? _audioProcessingTimer;
 
@@ -44,7 +48,31 @@ class AudioUtil {
   static FlutterPcmPlayer? _pcmPlayer;
 
   /// 获取音频流
-  static Stream<Uint8List> get audioStream => _audioStreamController.stream;
+  static Stream<Uint8List> get audioStream {
+    if (_audioStreamController.isClosed) {
+      _audioStreamController = StreamController<Uint8List>.broadcast();
+    }
+    return _audioStreamController.stream;
+  }
+
+  /// Luồng độ to âm thanh cục bộ RMS (0.0 đến 1.0)
+  static Stream<double> get amplitudeStream {
+    if (_amplitudeStreamController.isClosed) {
+      _amplitudeStreamController = StreamController<double>.broadcast();
+    }
+    return _amplitudeStreamController.stream;
+  }
+
+  /// Chuyển đổi dBFS sang RMS (0..1)
+  static double dbfsToRms(double dbfs) {
+    return math.pow(10, dbfs / 20).toDouble();
+  }
+
+  /// Chuyển đổi RMS (0..1) sang dBFS
+  static double rmsToDbfs(double rms) {
+    if (rms <= 0.00001) return -100.0;
+    return 20 * math.log(rms) / math.ln10;
+  }
 
   /// 初始化音频录制器
   static Future<void> initRecorder() async {
@@ -198,7 +226,12 @@ class AudioUtil {
 
   /// 释放资源
   static Future<void> dispose() async {
-    _audioStreamController.close();
+    if (!_audioStreamController.isClosed) {
+      await _audioStreamController.close();
+    }
+    if (!_amplitudeStreamController.isClosed) {
+      await _amplitudeStreamController.close();
+    }
     print('$TAG: 资源已释放');
   }
 
@@ -244,8 +277,22 @@ class AudioUtil {
         stream.listen(
           (data) async {
             if (data.isNotEmpty && data.length % 2 == 0) {
+              // Tính độ to RMS từ dữ liệu PCM 16-bit trước khi mã hóa Opus
+              double sumSquares = 0.0;
+              final int sampleCount = data.length ~/ 2;
+              for (int i = 0; i < data.length; i += 2) {
+                int sample = data[i] | (data[i + 1] << 8);
+                if (sample >= 32768) sample -= 65536;
+                final double norm = sample / 32768.0;
+                sumSquares += norm * norm;
+              }
+              final double rms = (sampleCount > 0) ? math.sqrt(sumSquares / sampleCount) : 0.0;
+              if (!_amplitudeStreamController.isClosed) {
+                _amplitudeStreamController.add(rms.clamp(0.0, 1.0));
+              }
+
               final opusData = await encodeToOpus(data);
-              if (opusData != null) {
+              if (opusData != null && !_audioStreamController.isClosed) {
                 _audioStreamController.add(opusData);
               }
             }

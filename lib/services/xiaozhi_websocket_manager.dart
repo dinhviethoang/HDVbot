@@ -5,6 +5,7 @@ import 'package:web_socket_channel/status.dart' as status;
 // 尝试导入io.dart，但在web平台会抛出异常
 import 'package:web_socket_channel/io.dart'
     if (dart.library.html) 'package:web_socket_channel/html.dart';
+import '../utils/app_log.dart';
 
 /// 小智WebSocket事件类型
 enum XiaozhiEventType { connected, disconnected, message, error, binaryMessage }
@@ -97,6 +98,7 @@ class XiaozhiWebSocketManager {
       _reconnectDelaySeconds = _minReconnectDelay;
     }
     _connectAttempt++;
+    AppLog.add('[KetNoi] connect url=$url lan thu $_connectAttempt');
     print('[KetNoi] connect url=$url lan thu $_connectAttempt');
 
     // 保存连接参数
@@ -228,6 +230,7 @@ class XiaozhiWebSocketManager {
       } catch (_) {}
       _channel = null;
       print('$TAG: 连接已断开');
+      AppLog.add('[KetNoi] disconnect chu dong (manualClose=true)');
     }
   }
 
@@ -258,6 +261,8 @@ class XiaozhiWebSocketManager {
   /// 发送文本消息
   void sendMessage(String message) {
     if (_channel != null && isConnected) {
+      final preview = message.length > 200 ? '${message.substring(0, 200)}...' : message;
+      AppLog.add('[Lenh] $preview');
       _channel!.sink.add(message);
     } else {
       print('$TAG: 发送失败，连接未建立');
@@ -316,6 +321,8 @@ class XiaozhiWebSocketManager {
 
     if (message is String) {
       // 文本消息
+      final preview = message.length > 200 ? '${message.substring(0, 200)}...' : message;
+      AppLog.add('[Server] $preview');
       print('$TAG: 收到消息: $message');
       _dispatchEvent(
         XiaozhiEvent(type: XiaozhiEventType.message, data: message),
@@ -331,6 +338,7 @@ class XiaozhiWebSocketManager {
   /// 处理断开连接事件
   void _onDisconnected() {
     print('$TAG: 连接已断开');
+    AppLog.add('[KetNoi] WebSocket bi ngat ket noi (manualClose=$_manualClose)');
     _dispatchEvent(
       XiaozhiEvent(type: XiaozhiEventType.disconnected, data: null),
     );
@@ -346,6 +354,7 @@ class XiaozhiWebSocketManager {
       _isReconnecting = true;
       final int delay = _reconnectDelaySeconds;
       print('[KetNoi] mat ket noi, hen ket noi lai sau ${delay}s');
+      AppLog.add('[KetNoi] Mat ket noi, hen ket noi lai sau ${delay}s');
 
       _reconnectDelaySeconds = (_reconnectDelaySeconds * 2).clamp(_minReconnectDelay, _maxReconnectDelay);
 
@@ -365,6 +374,7 @@ class XiaozhiWebSocketManager {
   /// 处理错误事件
   void _onError(error) {
     print('$TAG: 错误: $error');
+    AppLog.add('[Loi] WebSocket: $error');
     _dispatchEvent(
       XiaozhiEvent(type: XiaozhiEventType.error, data: error.toString()),
     );
