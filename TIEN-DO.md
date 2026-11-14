@@ -34,10 +34,17 @@ Nhánh làm việc: `rieng` (nhánh `main` giữ nguyên bản gốc).
 - 14/11: build 11 OK (commit 25f2912): app luôn nền tối (bỏ công tắc), màn hình luôn sáng khi mở app (MainActivity.kt),
   biểu cảm theo từng câu nói: lib/utils/emotion_detector.dart (từ khóa tiếng Việt có/không dấu + emoji) + cảm xúc server; mặc định neutral.
 
+- 14/11: người dùng báo trạng thái nhảy liên tục + màn hình khuôn mặt không nghe (chat nhấn giữ thì được). Claude đọc code xác định:
+  2 WebSocketManager song song cùng Device-Id (connectVoiceCall tạo mới không hủy cũ) + disconnect() vẫn tự reconnect; voice screen gọi
+  listen start trước 'hello' và không mở lại mic sau reconnect/sau TTS stop. agy sửa (1 kết nối, _manualClose, backoff 2-30s, nghe sau hello,
+  tạm dừng gửi audio khi robot nói, resumeListeningCall sau tts stop, debounce 2s). Build 12 OK (commit 1dd81cd).
+- APK build 11/12 đã tải về thư mục Downloads (HDVbot-build11.apk, HDVbot-build12.apk); người dùng chuyển sang điện thoại.
+
 ## Đang dở
-- Chưa thử build 11 trên máy: nền tối các màn hình, biểu cảm theo câu, miệng khi nói.
-- Có 1 bản thừa của khóa ký ở branding/hdvbot-release.p12 (copy nhầm) — có thể xóa.
+- Chưa thử build 12 trên máy: khuôn mặt có tự nghe/trả lời không, trạng thái còn nhảy không.
+- branding/hdvbot-release.p12 là bản copy thừa của khóa ký (có thể xóa).
 
 ## Việc tiếp theo
-1. Người dùng gỡ bản cũ một lần, cài build 11 (link Releases latest), đổi tiếng Việt trên xiaozhi.me, góp ý khuôn mặt.
-2. Sửa theo góp ý (codex có lại 17/11, agy Opus ~18/11). Push nhánh rieng là tự build + đăng Releases.
+1. Người dùng cài đè build 12, thử nói ở màn hình khuôn mặt; nếu im thì chạm màn hình, báo dòng trạng thái.
+2. Nếu cần log: cài adb trên PC, cắm điện thoại, adb logcat lọc KetNoi/Nghe/CamXuc.
+3. Sửa theo góp ý (codex có lại 17/11 15:23, agy Opus khoảng 18/11).
