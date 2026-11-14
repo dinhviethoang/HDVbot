@@ -94,6 +94,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
           if (wasConnected &&
               !_xiaozhiService!.isConnected &&
+              !_xiaozhiService!.isVoiceCallActive &&
               _autoReconnectTimer == null &&
               !_isOtaActivating) {
             _scheduleReconnect();
@@ -110,10 +111,11 @@ class _ChatScreenState extends State<ChatScreen> {
       if (mounted &&
           _xiaozhiService != null &&
           !_xiaozhiService!.isConnected &&
+          !_xiaozhiService!.isVoiceCallActive &&
           !_isOtaActivating) {
         try {
           await _xiaozhiService!.connect();
-          setState(() {});
+          if (mounted) setState(() {});
           if (!_xiaozhiService!.isConnected) {
             _scheduleReconnect();
           }
@@ -1165,7 +1167,17 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       ),
     ).then((_) {
-      _initXiaozhiService();
+      // Khi quay về, dùng chung singleton XiaozhiService, không tạo kết nối mới nếu service đang kết nối đúng url/token
+      if (_xiaozhiService != null &&
+          _xiaozhiService!.isConnected &&
+          _xiaozhiService!.websocketUrl == _currentConfig.websocketUrl &&
+          _xiaozhiService!.token == _currentConfig.token) {
+        _xiaozhiService!.setMessageListener(_handleXiaozhiMessage);
+        _xiaozhiService!.addListener(_handleXiaozhiEvent);
+        if (mounted) setState(() {});
+      } else {
+        _initXiaozhiService();
+      }
     });
   }
 

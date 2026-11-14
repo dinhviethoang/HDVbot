@@ -55,6 +55,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   Timer? _callTimer;
   Duration _callDuration = Duration.zero;
   bool _serverReady = false;
+  Timer? _disconnectDebounceTimer;
 
   // Cảm xúc robot (mặc định neutral khi rảnh rỗi) và đếm giờ về neutral
   FaceEmotion _currentEmotion = FaceEmotion.neutral;
@@ -244,6 +245,8 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       }
 
       if (type == 'hello') {
+        _disconnectDebounceTimer?.cancel();
+        _disconnectDebounceTimer = null;
         setState(() {
           _serverReady = true;
           _isConnected = true;
@@ -251,13 +254,9 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
           _statusText = 'Đã kết nối máy chủ';
         });
 
-        // Tự động bắt đầu thu âm sau khi máy chủ sẵn sàng
-        if (_isConnected && !_isSpeaking) {
-          Future.delayed(const Duration(milliseconds: 800), () {
-            if (mounted && _isConnected && !_isSpeaking) {
-              _startSpeaking();
-            }
-          });
+        // Tự động bắt đầu thu âm sau khi máy chủ sẵn sàng (đã có session_id)
+        if (!_isSpeaking) {
+          _startSpeaking();
         }
       } else if (type == 'tts') {
         final String state = message['state'] ?? '';
@@ -286,6 +285,15 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
           });
           // Khi robot nói xong và về idle qua 6 giây thì trả về neutral
           _startIdleEmotionTimer();
+
+          // Khi tts 'stop': đảm bảo app đang ở trạng thái lắng nghe
+          if (state == 'stop') {
+            if (_isSpeaking) {
+              _xiaozhiService?.resumeListeningCall();
+            } else {
+              _startSpeaking();
+            }
+          }
         }
       } else if (type == 'stt') {
         _lastDetectedSentence = null;
@@ -312,6 +320,11 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   void _handleServiceEvent(XiaozhiServiceEvent event) {
     if (!mounted) return;
     switch (event.type) {
+      case XiaozhiServiceEventType.connected:
+        _disconnectDebounceTimer?.cancel();
+        _disconnectDebounceTimer = null;
+        break;
+
       case XiaozhiServiceEventType.userMessage:
         _lastDetectedSentence = null;
         _idleEmotionTimer?.cancel();
@@ -351,9 +364,22 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         break;
 
       case XiaozhiServiceEventType.disconnected:
-        setState(() {
-          _isConnected = false;
-          _statusText = 'Mất kết nối máy chủ';
+        // Đặt lại các cờ để khi kết nối lại + 'hello' sẽ tự mở lại mic
+        _isSpeaking = false;
+        _isRobotSpeaking = false;
+        _isThinking = false;
+        _serverReady = false;
+        _xiaozhiService?.stopListeningCall();
+
+        // Chống nhấp nháy trạng thái: chỉ hiện "Mất kết nối máy chủ" nếu mất kết nối quá 2s liên tục
+        _disconnectDebounceTimer?.cancel();
+        _disconnectDebounceTimer = Timer(const Duration(seconds: 2), () {
+          if (mounted && !_serverReady) {
+            setState(() {
+              _isConnected = false;
+              _statusText = 'Mất kết nối máy chủ';
+            });
+          }
         });
         break;
 
@@ -370,6 +396,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     _otaCancelToken?.cancel();
     _idleEmotionTimer?.cancel();
     _controlsTimer?.cancel();
+    _disconnectDebounceTimer?.cancel();
     _xiaozhiService?.removeListener(_handleServiceEvent);
     _xiaozhiService?.emotionNotifier.removeListener(_handleEmotionChange);
     _xiaozhiService?.switchToChatMode();
@@ -392,18 +419,23 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       await _xiaozhiService!.switchToVoiceCallMode();
       await _xiaozhiService!.connectVoiceCall();
 
-      setState(() {
-        _statusText = 'Đã kết nối';
-        _isConnected = true;
-        _hasError = false;
-      });
-
-      if (mounted) {
-        _showCustomSnackbar(
-          message: 'Đã vào chế độ gọi thoại HDVbot',
-          icon: Icons.check_circle_outline,
-          iconColor: AppTheme.accentColor,
-        );
+      if (_xiaozhiService!.isConnected && _xiaozhiService!.sessionId != null) {
+        _disconnectDebounceTimer?.cancel();
+        _disconnectDebounceTimer = null;
+        setState(() {
+          _serverReady = true;
+          _isConnected = true;
+          _hasError = false;
+          _statusText = 'Đã kết nối máy chủ';
+        });
+        if (!_isSpeaking) {
+          _startSpeaking();
+        }
+      } else {
+        setState(() {
+          _statusText = 'Đang kết nối...';
+          _hasError = false;
+        });
       }
 
       _startCallTimer();
@@ -414,8 +446,6 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         role: MessageRole.assistant,
         content: 'Cuộc gọi thoại đã bắt đầu',
       );
-
-      _startSpeaking();
     } catch (e) {
       setState(() {
         _statusText = 'Kết nối thất bại';
@@ -484,15 +514,6 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       try {
         _xiaozhiService
             ?.startListeningCall()
-            .then((_) {
-              if (mounted) {
-                _showCustomSnackbar(
-                  message: 'Micro đang lắng nghe...',
-                  icon: Icons.mic,
-                  iconColor: AppTheme.accentColor,
-                );
-              }
-            })
             .catchError((e) {
               if (mounted) {
                 setState(() {
@@ -562,7 +583,10 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     if (_hasError) {
       return FaceState.error;
     }
-    if (!_isConnected || !_serverReady) {
+    // Nếu đang trong thời gian debounce 2s ngắt kết nối thì không giật giao diện sang connecting
+    final bool isDebouncingDisconnect =
+        _disconnectDebounceTimer != null && _disconnectDebounceTimer!.isActive;
+    if ((!_isConnected || !_serverReady) && !isDebouncingDisconnect) {
       return FaceState.connecting;
     }
     if (_isRobotSpeaking) {

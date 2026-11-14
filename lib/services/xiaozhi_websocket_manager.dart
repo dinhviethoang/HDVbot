@@ -23,7 +23,8 @@ typedef XiaozhiWebSocketListener = void Function(XiaozhiEvent event);
 /// 小智WebSocket管理器
 class XiaozhiWebSocketManager {
   static const String TAG = "XiaozhiWebSocket";
-  static const int RECONNECT_DELAY = 3000; // 3秒后重连
+  static const int _minReconnectDelay = 2; // 2s
+  static const int _maxReconnectDelay = 30; // 30s
 
   WebSocketChannel? _channel;
   String? _serverUrl;
@@ -34,6 +35,9 @@ class XiaozhiWebSocketManager {
 
   final List<XiaozhiWebSocketListener> _listeners = [];
   bool _isReconnecting = false;
+  bool _manualClose = false;
+  int _reconnectDelaySeconds = _minReconnectDelay;
+  int _connectAttempt = 0;
   Timer? _reconnectTimer;
   StreamSubscription? _streamSubscription;
 
@@ -45,6 +49,13 @@ class XiaozhiWebSocketManager {
   }) : _deviceId = deviceId,
        _clientId = clientId,
        _enableToken = enableToken;
+
+  String? get serverUrl => _serverUrl;
+  String? get token => _token;
+  String? get deviceId => _deviceId;
+  String? get clientId => _clientId;
+  bool get isReconnecting => _isReconnecting;
+  bool get manualClose => _manualClose;
 
   /// 添加事件监听器
   void addListener(XiaozhiWebSocketListener listener) {
@@ -74,13 +85,34 @@ class XiaozhiWebSocketManager {
       return;
     }
 
+    if ((isConnected || _isReconnecting) && _serverUrl == url && _token == token) {
+      print('$TAG: Đang hoặc đã kết nối tới $url, bỏ qua connect trùng lặp');
+      return;
+    }
+
+    _manualClose = false;
+
+    if (!_isReconnecting) {
+      _connectAttempt = 0;
+      _reconnectDelaySeconds = _minReconnectDelay;
+    }
+    _connectAttempt++;
+    print('[KetNoi] connect url=$url lan thu $_connectAttempt');
+
     // 保存连接参数
     _serverUrl = url;
     _token = token;
 
     // 如果已连接，先断开
     if (_channel != null) {
-      await disconnect();
+      _reconnectTimer?.cancel();
+      _reconnectTimer = null;
+      await _streamSubscription?.cancel();
+      _streamSubscription = null;
+      try {
+        await _channel!.sink.close(status.normalClosure);
+      } catch (_) {}
+      _channel = null;
     }
 
     try {
@@ -176,9 +208,14 @@ class XiaozhiWebSocketManager {
 
   /// 断开WebSocket连接
   Future<void> disconnect() async {
-    // 取消重连
+    _manualClose = true;
     _reconnectTimer?.cancel();
+    _reconnectTimer = null;
     _isReconnecting = false;
+    _serverUrl = null;
+    _token = null;
+    _reconnectDelaySeconds = _minReconnectDelay;
+    _connectAttempt = 0;
 
     // 取消订阅
     await _streamSubscription?.cancel();
@@ -186,10 +223,19 @@ class XiaozhiWebSocketManager {
 
     // 关闭连接
     if (_channel != null) {
-      await _channel!.sink.close(status.normalClosure);
+      try {
+        await _channel!.sink.close(status.normalClosure);
+      } catch (_) {}
       _channel = null;
       print('$TAG: 连接已断开');
     }
+  }
+
+  /// Hủy manager và xóa listener
+  Future<void> dispose() async {
+    await disconnect();
+    _listeners.clear();
+    print('$TAG: disposed');
   }
 
   /// 发送Hello消息
@@ -264,6 +310,10 @@ class XiaozhiWebSocketManager {
 
   /// 处理收到的消息
   void _onMessage(dynamic message) {
+    // Reset thời gian chờ reconnect về 2s và attempt = 0 khi nhận được message đầu tiên từ server sau khi kết nối
+    _reconnectDelaySeconds = _minReconnectDelay;
+    _connectAttempt = 0;
+
     if (message is String) {
       // 文本消息
       print('$TAG: 收到消息: $message');
@@ -285,14 +335,26 @@ class XiaozhiWebSocketManager {
       XiaozhiEvent(type: XiaozhiEventType.disconnected, data: null),
     );
 
-    // 尝试自动重连
+    if (_manualClose) {
+      print('$TAG: Chủ động ngắt kết nối, không tự kết nối lại');
+      return;
+    }
+
+    // Tự kết nối lại có giãn cách tăng dần (2s, 4s, 8s, 16s, tối đa 30s)
+    // Chỉ 1 lần kết nối lại đang chờ tại 1 thời điểm
     if (!_isReconnecting && _serverUrl != null && _token != null) {
       _isReconnecting = true;
+      final int delay = _reconnectDelaySeconds;
+      print('[KetNoi] mat ket noi, hen ket noi lai sau ${delay}s');
+
+      _reconnectDelaySeconds = (_reconnectDelaySeconds * 2).clamp(_minReconnectDelay, _maxReconnectDelay);
+
+      _reconnectTimer?.cancel();
       _reconnectTimer = Timer(
-        const Duration(milliseconds: RECONNECT_DELAY),
+        Duration(seconds: delay),
         () {
           _isReconnecting = false;
-          if (_serverUrl != null && _token != null) {
+          if (!_manualClose && _serverUrl != null && _token != null) {
             connect(_serverUrl!, _token!);
           }
         },
