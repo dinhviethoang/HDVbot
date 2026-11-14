@@ -40,11 +40,17 @@ Nhánh làm việc: `rieng` (nhánh `main` giữ nguyên bản gốc).
   tạm dừng gửi audio khi robot nói, resumeListeningCall sau tts stop, debounce 2s). Build 12 OK (commit 1dd81cd).
 - APK build 11/12 đã tải về thư mục Downloads (HDVbot-build11.apk, HDVbot-build12.apk); người dùng chuyển sang điện thoại.
 
+- 14/11: build 12 trên máy: chỉ chạy 1 lượt rồi server chào tạm biệt (kết thúc phiên), không đánh thức lại được, mic không vào chat.
+  agy làm: máy trạng thái phiên (sleeping khi server đóng / 20s im lặng), đánh thức bằng chạm hoặc độ to giọng nói (AudioUtil.amplitudeStream,
+  bật/tắt + độ nhạy trong Cài đặt), nút mic lớn, lưu stt/tts vào lịch sử chat, sửa mic chat sau khi rời màn hình khuôn mặt,
+  nhật ký trong app lib/utils/app_log.dart + lib/screens/log_screen.dart (giữ 2s vào mặt). Build 13 bị GitHub hủy (không phải lỗi code),
+  build 14 OK (commit 3161327, cùng code 3bea658). APK: Downloads/HDVbot-build14.apk.
+
 ## Đang dở
-- Chưa thử build 12 trên máy: khuôn mặt có tự nghe/trả lời không, trạng thái còn nhảy không.
+- Chưa thử build 14 trên máy. Phần kết nối/nghe đã sửa 2 lần đều dựa trên đọc code, chưa có log thật.
 - branding/hdvbot-release.p12 là bản copy thừa của khóa ký (có thể xóa).
 
 ## Việc tiếp theo
-1. Người dùng cài đè build 12, thử nói ở màn hình khuôn mặt; nếu im thì chạm màn hình, báo dòng trạng thái.
-2. Nếu cần log: cài adb trên PC, cắm điện thoại, adb logcat lọc KetNoi/Nghe/CamXuc.
-3. Sửa theo góp ý (codex có lại 17/11 15:23, agy Opus khoảng 18/11).
+1. Người dùng cài đè build 14, thử: nói ở mặt → robot ngủ → chạm/nói to để đánh thức → nói tiếp; xem chat có lưu lời thoại.
+2. Có lỗi thì giữ 2s vào mặt → Nhật ký → Sao chép/chụp gửi Claude.
+3. Từ 17/11 15:23 dùng codex cho phần sửa logic (Gemini Flash hay đoán sai).
