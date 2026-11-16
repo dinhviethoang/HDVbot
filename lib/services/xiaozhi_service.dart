@@ -66,6 +66,7 @@ class XiaozhiService {
   bool _hasStartedCall = false;
   final List<MessageListener> _messageListeners = [];
   bool _pauseAudioSending = false;
+  Timer? _audioDrainTimer;
 
   String? get sessionId => _sessionId;
   XiaozhiWebSocketManager? get webSocketManager => _webSocketManager;
@@ -206,11 +207,15 @@ class XiaozhiService {
       await AudioUtil.stopPlaying();
 
       _isVoiceCallActive = false;
+      _audioDrainTimer?.cancel();
+      _audioDrainTimer = null;
       _pauseAudioSending = false;
       print('$TAG: 已切换到普通聊天模式');
     } catch (e) {
       print('$TAG: 切换到普通聊天模式失败: $e');
       _isVoiceCallActive = false;
+      _audioDrainTimer?.cancel();
+      _audioDrainTimer = null;
       _pauseAudioSending = false;
     }
   }
@@ -343,6 +348,8 @@ class XiaozhiService {
       _sessionId = null;
       _isVoiceCallActive = false;
       _hasStartedCall = false;
+      _audioDrainTimer?.cancel();
+      _audioDrainTimer = null;
       _pauseAudioSending = false;
       emotionNotifier.value = 'neutral';
       AppLog.add('[DichVu] XiaozhiService da ngat ket noi');
@@ -493,6 +500,8 @@ class XiaozhiService {
       await _audioStreamSubscription?.cancel();
       _audioStreamSubscription = null;
       _isVoiceCallActive = false;
+      _audioDrainTimer?.cancel();
+      _audioDrainTimer = null;
       _pauseAudioSending = false;
 
       // 直接断开连接
@@ -610,6 +619,8 @@ class XiaozhiService {
         });
       }
 
+      _audioDrainTimer?.cancel();
+      _audioDrainTimer = null;
       _pauseAudioSending = false;
 
       // 发送开始监听命令
@@ -732,7 +743,9 @@ class XiaozhiService {
       case XiaozhiEventType.disconnected:
         _isConnected = false;
         _hasStartedCall = false;
-        _pauseAudioSending = false;
+        _audioDrainTimer?.cancel();
+      _audioDrainTimer = null;
+      _pauseAudioSending = false;
         _dispatchEvent(
           XiaozhiServiceEvent(XiaozhiServiceEventType.disconnected, null),
         );
@@ -743,7 +756,8 @@ class XiaozhiService {
         break;
 
       case XiaozhiEventType.binaryMessage:
-        // 处理二进制音频数据 - 简化直接播放
+        // Auto-mute: Tạm dừng gửi mic khi đang nhận và phát âm thanh từ robot
+        _pauseAudioSending = true;
         final audioData = event.data as List<int>;
         AudioUtil.playOpusData(Uint8List.fromList(audioData));
         break;
@@ -822,8 +836,10 @@ class XiaozhiService {
           final String text = jsonData['text'] ?? '';
 
           if (state == 'start' || state == 'sentence_start') {
+            _audioDrainTimer?.cancel();
             _pauseAudioSending = true;
-            print('[Nghe] tam dung audio khi robot noi');
+            print('[Nghe] Half-duplex: Tạm dừng gửi micro khi robot phát âm thanh');
+            AssistantActionExecutor.updateFloatingAvatarState('speaking');
             if (state == 'sentence_start' && text.isNotEmpty) {
               final cleaned = AssistantActionExecutor.interceptAndExecute(text);
               print('$TAG: 收到TTS句子: $cleaned');
@@ -832,10 +848,18 @@ class XiaozhiService {
               );
             }
           } else if (state == 'stop') {
-            _pauseAudioSending = false;
-            if (_isVoiceCallActive) {
-              resumeListeningCall();
-            }
+            // Đợi 600ms để loa ngoài xả hết buffer PCM đang phát dở, tránh mic thu ngược tiếng vang
+            _audioDrainTimer?.cancel();
+            _audioDrainTimer = Timer(const Duration(milliseconds: 600), () {
+              _audioDrainTimer?.cancel();
+      _audioDrainTimer = null;
+      _pauseAudioSending = false;
+              print('[Nghe] Xả buffer loa xong, mở lại micro gửi WebSocket');
+              AssistantActionExecutor.updateFloatingAvatarState('idle');
+              if (_isVoiceCallActive) {
+                resumeListeningCall();
+              }
+            });
           }
           break;
 
@@ -845,6 +869,7 @@ class XiaozhiService {
           if (text.isNotEmpty) {
             final cleaned = AssistantActionExecutor.interceptAndExecute(text);
             print('$TAG: 收到语音识别结果: $cleaned');
+            AssistantActionExecutor.updateFloatingAvatarState('listening');
             // 先分发用户消息事件
             _dispatchEvent(
               XiaozhiServiceEvent(XiaozhiServiceEventType.userMessage, cleaned),

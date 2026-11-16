@@ -267,6 +267,12 @@ class AudioUtil {
             encoder: AudioEncoder.pcm16bits,
             sampleRate: SAMPLE_RATE,
             numChannels: CHANNELS,
+            echoCancel: true,
+            noiseSuppress: true,
+            autoGain: true,
+            androidConfig: AndroidRecordConfig(
+              audioSource: AndroidAudioSource.voiceCommunication,
+            ),
           ),
         );
 

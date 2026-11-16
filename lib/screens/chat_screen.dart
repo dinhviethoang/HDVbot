@@ -15,6 +15,8 @@ import 'package:ai_assistant/widgets/message_bubble.dart';
 import 'package:ai_assistant/screens/voice_call_screen.dart';
 import 'package:ai_assistant/utils/app_theme.dart';
 import 'package:ai_assistant/utils/app_log.dart';
+import 'package:ai_assistant/widgets/ai_avatar_widget.dart';
+import 'package:ai_assistant/widgets/robot_face.dart';
 
 class ChatScreen extends StatefulWidget {
   final Conversation conversation;
@@ -33,6 +35,8 @@ class _ChatScreenState extends State<ChatScreen> {
   final XiaozhiOtaService _otaService = XiaozhiOtaService();
   OtaCancellationToken? _otaCancelToken;
   late XiaozhiConfig _currentConfig;
+  FaceState _aiState = FaceState.idle;
+  String _aiEmotion = 'neutral';
 
   // Trạng thái kích hoạt OTA
   bool _isOtaActivating = false;
@@ -261,6 +265,43 @@ class _ChatScreenState extends State<ChatScreen> {
 
     if (message is Map<String, dynamic>) {
       final String? type = message['type'];
+      final String? msgState = message['state'];
+      final dynamic emo = message['emotion'];
+
+      // Cập nhật biểu cảm cảm xúc AI
+      if (emo is String && emo.trim().isNotEmpty) {
+        if (_aiEmotion != emo.trim()) {
+          setState(() => _aiEmotion = emo.trim());
+        }
+      }
+
+      // Cập nhật trạng thái động của robot
+      if (type == 'tts') {
+        if (msgState == 'start' || msgState == 'sentence_start') {
+          if (_aiState != FaceState.speaking) {
+            setState(() => _aiState = FaceState.speaking);
+          }
+        } else if (msgState == 'stop') {
+          if (_aiState != FaceState.idle) {
+            setState(() => _aiState = FaceState.idle);
+          }
+        }
+      } else if (type == 'stt') {
+        if (_aiState != FaceState.listening) {
+          setState(() => _aiState = FaceState.listening);
+        }
+      } else if (type == 'listen') {
+        if (msgState == 'start') {
+          if (_aiState != FaceState.listening) {
+            setState(() => _aiState = FaceState.listening);
+          }
+        } else if (msgState == 'stop') {
+          if (_aiState != FaceState.thinking) {
+            setState(() => _aiState = FaceState.thinking);
+          }
+        }
+      }
+
       final content = message['text'] ?? message['content'];
 
       if (content != null && content.toString().trim().isNotEmpty) {
@@ -315,9 +356,34 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _handleXiaozhiEvent(XiaozhiServiceEvent event) {
     if (!mounted) return;
-    if (event.type == XiaozhiServiceEventType.connected ||
-        event.type == XiaozhiServiceEventType.disconnected) {
+    if (event.type == XiaozhiServiceEventType.connected) {
+      setState(() => _aiState = FaceState.idle);
+    } else if (event.type == XiaozhiServiceEventType.disconnected) {
+      setState(() => _aiState = FaceState.idle);
+    } else if (event.type == XiaozhiServiceEventType.userMessage) {
+      setState(() => _aiState = FaceState.thinking);
+    } else if (event.type == XiaozhiServiceEventType.textMessage) {
+      setState(() => _aiState = FaceState.speaking);
+    } else {
       setState(() {});
+    }
+  }
+
+  String _getAiStateLabel() {
+    switch (_aiState) {
+      case FaceState.listening:
+        return '🎤 Đang nghe...';
+      case FaceState.thinking:
+        return '⚡ Đang suy nghĩ...';
+      case FaceState.speaking:
+        return '🗣️ Đang trả lời...';
+      case FaceState.connecting:
+        return '🔄 Đang kết nối...';
+      case FaceState.error:
+        return '⚠️ Mất kết nối';
+      case FaceState.idle:
+      default:
+        return '🤖 Sẵn sàng';
     }
   }
 
@@ -356,16 +422,11 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         title: Row(
           children: [
-            Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: AppTheme.primaryColor.withOpacity(0.5)),
-              ),
-              child: const CircleAvatar(
-                radius: 20,
-                backgroundColor: AppTheme.surfaceColor,
-                child: Icon(Icons.mic, color: AppTheme.primaryColor, size: 22),
-              ),
+            AiAvatarWidget(
+              state: _aiState,
+              emotion: _aiEmotion,
+              size: 40,
+              service: _xiaozhiService,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -676,6 +737,38 @@ class _ChatScreenState extends State<ChatScreen> {
                 fontWeight: FontWeight.w400,
               ),
               overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: AppTheme.backgroundColor,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppTheme.borderColor),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _getAiStateLabel(),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primaryColor,
+                  ),
+                ),
+                if (_aiEmotion != 'neutral') ...[
+                  const SizedBox(width: 4),
+                  Text(
+                    '($_aiEmotion)',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: AppTheme.secondaryTextColor,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ],

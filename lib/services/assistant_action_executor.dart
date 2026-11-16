@@ -141,6 +141,44 @@ class AssistantActionExecutor {
     }
   }
 
+  /// Kiểm tra quyền vẽ đè màn hình (Overlay)
+  static Future<bool> checkOverlayPermission() async {
+    try {
+      final res = await _channel.invokeMethod('checkOverlayPermission');
+      return res == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Mở màn hình cấp quyền vẽ đè (Overlay)
+  static Future<void> requestOverlayPermission() async {
+    try {
+      await _channel.invokeMethod('requestOverlayPermission');
+    } catch (_) {}
+  }
+
+  /// Khởi chạy bong bóng nhân vật ảo nổi
+  static Future<void> startFloatingAvatar([String state = 'idle']) async {
+    try {
+      await _channel.invokeMethod('startFloatingAvatar', {'state': state});
+    } catch (_) {}
+  }
+
+  /// Tắt bong bóng nhân vật ảo nổi
+  static Future<void> stopFloatingAvatar() async {
+    try {
+      await _channel.invokeMethod('stopFloatingAvatar');
+    } catch (_) {}
+  }
+
+  /// Cập nhật trạng thái biểu cảm cho bong bóng nhân vật ảo nổi
+  static Future<void> updateFloatingAvatarState(String state) async {
+    try {
+      await _channel.invokeMethod('updateFloatingAvatarState', {'state': state});
+    } catch (_) {}
+  }
+
   /// Bản tin đăng ký Xiaozhi IoT Descriptor (Lớp 1)
   static Map<String, dynamic> buildIotDescriptorMessage() {
     return {
