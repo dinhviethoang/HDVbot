@@ -1356,6 +1356,41 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                                 ),
                               ),
                             ),
+                            const SizedBox(height: 10),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                OutlinedButton.icon(
+                                  onPressed: () {
+                                    Clipboard.setData(ClipboardData(text: _activationCode!));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Đã sao chép mã: $_activationCode')),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.copy, size: 14, color: AppTheme.accentColor),
+                                  label: const Text('Sao chép mã', style: TextStyle(color: AppTheme.accentColor, fontSize: 12)),
+                                  style: OutlinedButton.styleFrom(
+                                    side: const BorderSide(color: AppTheme.accentColor),
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                OutlinedButton.icon(
+                                  onPressed: () {
+                                    Clipboard.setData(ClipboardData(text: _currentConfig.macAddress));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Đã sao chép MAC: ${_currentConfig.macAddress}')),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.copy, size: 14, color: AppTheme.primaryColor),
+                                  label: Text('MAC: ${_currentConfig.macAddress}', style: const TextStyle(color: AppTheme.primaryColor, fontSize: 12)),
+                                  style: OutlinedButton.styleFrom(
+                                    side: const BorderSide(color: AppTheme.primaryColor),
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  ),
+                                ),
+                              ],
+                            ),
                             const SizedBox(height: 16),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,

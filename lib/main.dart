@@ -13,8 +13,11 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:ai_assistant/utils/audio_util.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
+import 'package:ai_assistant/utils/unsafe_ssl_helper.dart';
 
 void main() async {
+  // Bỏ qua lỗi chứng chỉ SSL Let's Encrypt trên Android 7.1.1 (Samsung Galaxy J2 Pro)
+  UnsafeSslHelper.init();
   WidgetsFlutterBinding.ensureInitialized();
 
   // Thiết lập giao diện hệ thống

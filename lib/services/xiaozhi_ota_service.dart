@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../utils/unsafe_ssl_helper.dart';
 
 /// Kết quả kiểm tra phiên bản và kích hoạt OTA
 class OtaCheckResult {
@@ -56,7 +57,7 @@ class XiaozhiOtaService {
 
   final http.Client _client;
 
-  XiaozhiOtaService({http.Client? client}) : _client = client ?? http.Client();
+  XiaozhiOtaService({http.Client? client}) : _client = client ?? UnsafeSslHelper.getUnsafeHttpClient();
 
   /// Chuẩn hóa URL OTA, luôn đảm bảo kết thúc bằng dấu gạch chéo '/'
   String _normalizeOtaUrl(String? url) {

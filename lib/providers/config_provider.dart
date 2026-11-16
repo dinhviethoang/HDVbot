@@ -7,9 +7,14 @@ import 'package:ai_assistant/utils/device_util.dart';
 class ConfigProvider extends ChangeNotifier {
   List<XiaozhiConfig> _xiaozhiConfigs = [];
   bool _isLoaded = false;
+  String _appMode = 'xiaozhi'; // 'xiaozhi' hoặc 'gemini'
+  String _geminiApiKey = '';
 
   List<XiaozhiConfig> get xiaozhiConfigs => _xiaozhiConfigs;
   bool get isLoaded => _isLoaded;
+  String get appMode => _appMode;
+  bool get isGeminiMode => _appMode == 'gemini';
+  String get geminiApiKey => _geminiApiKey;
 
   ConfigProvider() {
     loadConfigs();
@@ -17,6 +22,9 @@ class ConfigProvider extends ChangeNotifier {
 
   Future<void> loadConfigs() async {
     final prefs = await SharedPreferences.getInstance();
+
+    _appMode = prefs.getString('app_mode') ?? 'xiaozhi';
+    _geminiApiKey = prefs.getString('gemini_api_key') ?? '';
 
     // Load Xiaozhi configs
     final xiaozhiConfigsJson = prefs.getStringList('xiaozhiConfigs') ?? [];
@@ -67,6 +75,20 @@ class ConfigProvider extends ChangeNotifier {
     final xiaozhiConfigsJson =
         _xiaozhiConfigs.map((config) => jsonEncode(config.toJson())).toList();
     await prefs.setStringList('xiaozhiConfigs', xiaozhiConfigsJson);
+  }
+
+  Future<void> setAppMode(String mode) async {
+    _appMode = mode;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('app_mode', mode);
+    notifyListeners();
+  }
+
+  Future<void> setGeminiApiKey(String key) async {
+    _geminiApiKey = key;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('gemini_api_key', key);
+    notifyListeners();
   }
 
   Future<void> addXiaozhiConfig(

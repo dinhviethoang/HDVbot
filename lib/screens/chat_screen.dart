@@ -535,6 +535,41 @@ class _ChatScreenState extends State<ChatScreen> {
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.white, fontSize: 13),
             ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: _activationCode!));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Đã sao chép mã: $_activationCode')),
+                    );
+                  },
+                  icon: const Icon(Icons.copy, size: 14, color: Color(0xFF00F0FF)),
+                  label: const Text('Sao chép mã', style: TextStyle(color: Color(0xFF00F0FF), fontSize: 12)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF00F0FF)),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: _currentConfig.macAddress));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Đã sao chép MAC: ${_currentConfig.macAddress}')),
+                    );
+                  },
+                  icon: const Icon(Icons.copy, size: 14, color: Colors.white),
+                  label: Text('MAC: ${_currentConfig.macAddress}', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.white70),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 10),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,

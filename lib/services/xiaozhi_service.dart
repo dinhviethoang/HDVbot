@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import '../services/xiaozhi_websocket_manager.dart';
+import '../services/assistant_action_executor.dart';
 import '../utils/device_util.dart';
 import '../utils/audio_util.dart';
 import '../utils/app_log.dart';
@@ -363,6 +364,7 @@ class XiaozhiService {
       bool hasResponse = false;
 
       print('$TAG: 开始发送文本消息: $message');
+      AssistantActionExecutor.interceptAndExecute(message);
 
       // 添加消息监听器，监听所有可能的回复
       void onceListener(XiaozhiServiceEvent event) {
@@ -823,9 +825,10 @@ class XiaozhiService {
             _pauseAudioSending = true;
             print('[Nghe] tam dung audio khi robot noi');
             if (state == 'sentence_start' && text.isNotEmpty) {
-              print('$TAG: 收到TTS句子: $text');
+              final cleaned = AssistantActionExecutor.interceptAndExecute(text);
+              print('$TAG: 收到TTS句子: $cleaned');
               _dispatchEvent(
-                XiaozhiServiceEvent(XiaozhiServiceEventType.textMessage, text),
+                XiaozhiServiceEvent(XiaozhiServiceEventType.textMessage, cleaned),
               );
             }
           } else if (state == 'stop') {
@@ -840,10 +843,11 @@ class XiaozhiService {
           // 处理语音识别结果
           final String text = jsonData['text'] ?? '';
           if (text.isNotEmpty) {
-            print('$TAG: 收到语音识别结果: $text');
+            final cleaned = AssistantActionExecutor.interceptAndExecute(text);
+            print('$TAG: 收到语音识别结果: $cleaned');
             // 先分发用户消息事件
             _dispatchEvent(
-              XiaozhiServiceEvent(XiaozhiServiceEventType.userMessage, text),
+              XiaozhiServiceEvent(XiaozhiServiceEventType.userMessage, cleaned),
             );
           }
           break;
@@ -871,8 +875,15 @@ class XiaozhiService {
           }
           final String llmText = jsonData['text'] ?? '';
           if (llmText.isNotEmpty) {
+            AssistantActionExecutor.interceptAndExecute(llmText);
             print('$TAG: 收到LLM消息: $llmText (emotion: $llmEmotion)');
           }
+          break;
+
+        case 'iot':
+          // Lớp 1: Giao thức IoT Xiaozhi Descriptor & Commands
+          print('$TAG: 收到IoT packet từ server: $message');
+          AssistantActionExecutor.handleIotPacket(jsonData);
           break;
 
         default:

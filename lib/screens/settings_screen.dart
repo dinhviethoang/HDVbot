@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ai_assistant/providers/config_provider.dart';
 import 'package:ai_assistant/models/xiaozhi_config.dart';
+import 'package:flutter/services.dart';
+import 'package:ai_assistant/services/xiaozhi_ota_service.dart';
 import 'package:ai_assistant/utils/app_theme.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -337,6 +339,322 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
   }
 
+  Widget _buildModeSelectionCard() {
+    return Consumer<ConfigProvider>(
+      builder: (context, configProvider, child) {
+        final currentMode = configProvider.appMode;
+        final geminiKeyController = TextEditingController(text: configProvider.geminiApiKey);
+
+        return _buildCard(
+          title: 'Chế độ hoạt động AI',
+          subtitle: 'Chọn phương thức kết nối AI cho HDVbot',
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Chế độ 1: Xiaozhi Server
+                Container(
+                  decoration: BoxDecoration(
+                    color: currentMode == 'xiaozhi'
+                        ? AppTheme.primaryColor.withOpacity(0.12)
+                        : AppTheme.backgroundColor,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: currentMode == 'xiaozhi'
+                          ? AppTheme.primaryColor
+                          : AppTheme.borderColor,
+                    ),
+                  ),
+                  child: RadioListTile<String>(
+                    title: const Text(
+                      'Chế độ 1: Xiaozhi Server (Mặc định)',
+                      style: TextStyle(
+                        color: AppTheme.textColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'Kết nối hệ sinh thái Xiaozhi qua OTA và WebSocket thời gian thực.',
+                      style: TextStyle(color: AppTheme.secondaryTextColor, fontSize: 13),
+                    ),
+                    value: 'xiaozhi',
+                    groupValue: currentMode,
+                    activeColor: AppTheme.primaryColor,
+                    onChanged: (val) {
+                      if (val != null) configProvider.setAppMode(val);
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Chế độ 2: Gemini Direct API (Fallback)
+                Container(
+                  decoration: BoxDecoration(
+                    color: currentMode == 'gemini'
+                        ? AppTheme.primaryColor.withOpacity(0.12)
+                        : AppTheme.backgroundColor,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: currentMode == 'gemini'
+                          ? AppTheme.primaryColor
+                          : AppTheme.borderColor,
+                    ),
+                  ),
+                  child: RadioListTile<String>(
+                    title: const Text(
+                      'Chế độ 2: Gemini Direct API (Fallback)',
+                      style: TextStyle(
+                        color: AppTheme.textColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'Giao tiếp trực tiếp với Google Gemini AI khi không dùng server Xiaozhi.',
+                      style: TextStyle(color: AppTheme.secondaryTextColor, fontSize: 13),
+                    ),
+                    value: 'gemini',
+                    groupValue: currentMode,
+                    activeColor: AppTheme.primaryColor,
+                    onChanged: (val) {
+                      if (val != null) configProvider.setAppMode(val);
+                    },
+                  ),
+                ),
+                if (currentMode == 'gemini') ...[
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Gemini API Key:',
+                    style: TextStyle(
+                      color: AppTheme.textColor,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: AppTheme.backgroundColor,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppTheme.borderColor),
+                          ),
+                          child: TextField(
+                            controller: geminiKeyController,
+                            style: const TextStyle(color: AppTheme.textColor, fontSize: 14),
+                            decoration: const InputDecoration(
+                              hintText: 'Nhập Google Gemini API Key...',
+                              hintStyle: TextStyle(color: AppTheme.secondaryTextColor),
+                              contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              border: InputBorder.none,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () async {
+                          await configProvider.setGeminiApiKey(geminiKeyController.text.trim());
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Đã lưu Gemini API Key thành công!'),
+                                backgroundColor: AppTheme.primaryColor,
+                              ),
+                            );
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primaryColor,
+                          foregroundColor: const Color(0xFF070B12),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        child: const Text('Lưu'),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _testOtaAndShowCode(XiaozhiConfig config) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: Card(
+          color: AppTheme.surfaceColor,
+          child: Padding(
+            padding: EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(color: AppTheme.primaryColor),
+                SizedBox(height: 16),
+                Text('Đang kết nối OTA lấy mã xác minh...', style: TextStyle(color: AppTheme.textColor)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      final otaService = XiaozhiOtaService();
+      final result = await otaService.checkVersion(
+        otaUrl: config.otaUrl,
+        mac: config.macAddress,
+        clientId: config.macAddress,
+      );
+
+      if (!mounted) return;
+      Navigator.of(context).pop();
+
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppTheme.surfaceColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: AppTheme.borderColor),
+          ),
+          title: const Text('Thông tin OTA & Kích hoạt', style: TextStyle(color: AppTheme.textColor, fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.backgroundColor,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Địa chỉ MAC thiết bị:', style: TextStyle(color: AppTheme.secondaryTextColor, fontSize: 12)),
+                          const SizedBox(height: 4),
+                          SelectableText(
+                            config.macAddress,
+                            style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 15),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.copy, color: AppTheme.primaryColor, size: 20),
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: config.macAddress));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Đã sao chép MAC: ${config.macAddress}')),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (result.hasActivationCode) ...[
+                const Text('MÃ XÁC MINH 6 SỐ:', textAlign: TextAlign.center, style: TextStyle(color: AppTheme.secondaryTextColor, fontSize: 13, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.backgroundColor,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppTheme.accentColor, width: 1.5),
+                  ),
+                  child: Text(
+                    result.activationCode!.split('').join(' '),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppTheme.accentColor, letterSpacing: 4),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: result.activationCode!));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Đã sao chép mã: ${result.activationCode}')),
+                    );
+                  },
+                  icon: const Icon(Icons.copy, size: 16, color: AppTheme.accentColor),
+                  label: const Text('Sao chép mã xác minh', style: TextStyle(color: AppTheme.accentColor)),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Nhập mã này lên trang web xiaozhi.me để liên kết thiết bị!',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppTheme.textColor, fontSize: 13),
+                ),
+              ] else ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.green),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.check_circle, color: Colors.green),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Thiết bị đã được kích hoạt thành công!',
+                          style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (result.websocketUrl != null) ...[
+                  const SizedBox(height: 8),
+                  Text('WebSocket URL: ${result.websocketUrl}', style: const TextStyle(color: AppTheme.secondaryTextColor, fontSize: 12)),
+                ],
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Đóng', style: TextStyle(color: AppTheme.primaryColor)),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppTheme.surfaceColor,
+          title: const Text('Lỗi kết nối OTA', style: TextStyle(color: AppTheme.errorColor)),
+          content: Text(e.toString().replaceFirst('Exception: ', ''), style: const TextStyle(color: AppTheme.textColor)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Đóng', style: TextStyle(color: AppTheme.primaryColor)),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
   Widget _buildXiaozhiConfigTab() {
     return Consumer<ConfigProvider>(
       builder: (context, configProvider, child) {
@@ -526,6 +844,52 @@ class _SettingsScreenState extends State<SettingsScreen>
                         style: const TextStyle(fontSize: 14, color: AppTheme.textColor),
                       ),
                     ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      final mac = config.macAddress.isEmpty ? 'Chưa có MAC' : config.macAddress;
+                      Clipboard.setData(ClipboardData(text: mac));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Đã sao chép MAC: ' + mac),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.copy, size: 16, color: AppTheme.primaryColor),
+                    label: const Text(
+                      'Sao chép MAC',
+                      style: TextStyle(color: AppTheme.primaryColor, fontSize: 13),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppTheme.primaryColor),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _testOtaAndShowCode(config),
+                    icon: const Icon(Icons.qr_code, size: 16, color: Color(0xFF070B12)),
+                    label: const Text(
+                      'Lấy mã 6 số OTA',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      foregroundColor: const Color(0xFF070B12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                    ),
                   ),
                 ),
               ],

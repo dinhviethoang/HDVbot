@@ -6,6 +6,8 @@ import 'package:web_socket_channel/status.dart' as status;
 import 'package:web_socket_channel/io.dart'
     if (dart.library.html) 'package:web_socket_channel/html.dart';
 import '../utils/app_log.dart';
+import '../utils/unsafe_ssl_helper.dart';
+import '../services/assistant_action_executor.dart';
 
 /// 小智WebSocket事件类型
 enum XiaozhiEventType { connected, disconnected, message, error, binaryMessage }
@@ -148,7 +150,11 @@ class XiaozhiWebSocketManager {
         }
 
         // 使用IOWebSocketChannel并传递headers
-        _channel = IOWebSocketChannel.connect(uri, headers: headers);
+        _channel = IOWebSocketChannel.connect(
+          uri,
+          headers: headers,
+          customClient: UnsafeSslHelper.getUnsafeIoHttpClient(),
+        );
 
         print('$TAG: 使用headers方式连接WebSocket成功');
       } catch (e) {
@@ -256,6 +262,22 @@ class XiaozhiWebSocketManager {
     };
 
     sendMessage(jsonEncode(hello));
+
+    // Đăng ký Xiaozhi IoT Descriptor (Lớp 1)
+    Timer(const Duration(milliseconds: 300), () {
+      _sendIotDescriptors();
+    });
+  }
+
+  /// Đăng ký IoT Descriptor khai báo các hàm trợ lý ảo với server Xiaozhi
+  void _sendIotDescriptors() {
+    try {
+      final iotMsg = AssistantActionExecutor.buildIotDescriptorMessage();
+      sendMessage(jsonEncode(iotMsg));
+      print('$TAG: Đã gửi IoT Descriptor khai báo hàm trợ lý ảo tới Xiaozhi');
+    } catch (e) {
+      print('$TAG: Lỗi khi gửi IoT Descriptors: $e');
+    }
   }
 
   /// 发送文本消息
